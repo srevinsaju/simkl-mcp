@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simkl MCP Server</title>
+    <link rel="icon" type="image/png" href="https://simkl.com/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-primary: #2C3E50;
+            --color-primary-dark: #1A252F;
+            --color-primary-highlight: #34495E;
+            --color-primary-lowlight: #1E2D3D;
+            --color-bg: #F4F4F4;
+            --color-surface: #FFFFFF;
+            --color-border: #E0E0E0;
+            --color-text: #333333;
+            --color-text-muted: #767676;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Fira Code', monospace;
+            background: var(--color-bg);
+            color: var(--color-text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            background: var(--color-surface);
+            border: 2px solid var(--color-border);
+            border-radius: 0;
+            max-width: 800px;
+            width: 100%;
+            padding: 0;
+        }
+
+        .terminal-header {
+            background: var(--color-primary);
+            padding: 12px 16px;
+            border-bottom: 2px solid var(--color-primary-dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--color-primary-dark);
+        }
+
+        .terminal-title {
+            margin-left: auto;
+            color: var(--color-surface);
+            font-size: 12px;
+        }
+
+        .content {
+            padding: 32px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+            font-weight: 700;
+            color: var(--color-text);
+        }
+
+        h1::before {
+            content: "$ ";
+            color: var(--color-primary);
+        }
+
+        .subtitle {
+            color: var(--color-text-muted);
+            margin-bottom: 24px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .badge {
+            background: var(--color-primary);
+            color: var(--color-surface);
+            padding: 2px 8px;
+            border-radius: 0;
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .info-section {
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 0;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .info-section h2 {
+            color: var(--color-text);
+            font-size: 16px;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .info-section h2::before {
+            content: "# ";
+            color: var(--color-primary);
+        }
+
+        .info-section p,
+        .info-section ul {
+            color: var(--color-text-muted);
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+
+        .info-section ul {
+            padding-left: 20px;
+            list-style: none;
+        }
+
+        .info-section li {
+            margin-bottom: 8px;
+        }
+
+        .info-section li::before {
+            content: "▸ ";
+            color: var(--color-primary);
+            margin-right: 8px;
+        }
+
+        .info-section a {
+            color: var(--color-primary);
+            text-decoration: none;
+        }
+
+        .info-section a:hover {
+            text-decoration: underline;
+        }
+
+        .code-block {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 0;
+            padding: 16px;
+            margin: 12px 0;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+
+        .code-block code {
+            color: var(--color-text);
+            white-space: pre;
+        }
+
+        .comment {
+            color: var(--color-text-muted);
+        }
+
+        .tool-item {
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: var(--color-text-muted);
+        }
+
+        .tool-name {
+            color: var(--color-primary);
+            font-weight: 700;
+        }
+
+        .note {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            padding: 12px 16px;
+            margin: 12px 0;
+            font-size: 12px;
+            color: var(--color-text-muted);
+        }
+
+        .note::before {
+            content: "ℹ ";
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="terminal-header">
+            <div class="terminal-dot"></div>
+            <div class="terminal-dot"></div>
+            <div class="terminal-dot"></div>
+            <div class="terminal-title">simkl-mcp-server</div>
+        </div>
+
+        <div class="content">
+            <h1>simkl-mcp</h1>
+            <div class="subtitle">
+                <span>model context protocol server for simkl</span>
+                <span class="badge">unofficial</span>
+            </div>
+
+            <div class="info-section">
+                <h2>what is this?</h2>
+                <p>
+                    this is an <a href="https://modelcontextprotocol.io" target="_blank">mcp (model context protocol)</a> server that provides claude with access to
+                    <a href="https://simkl.com" target="_blank">simkl</a> for tracking movies, tv shows, and anime.
+                </p>
+                <p style="margin-top: 12px;">
+                    built with cloudflare agents sdk and autogenerated from openapi spec - 28 tools (27 generated + 1 custom), zero manual parameter wiring.
+                </p>
+            </div>
+
+            <div class="info-section">
+                <h2>available tools (28) & resources</h2>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_search_by_text</span> search by text query (tv/movie/anime)
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_search_by_id</span> lookup by external id (imdb/tmdb/mal/anidb/tvdb)
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_start_watching</span> start watching
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_pause_watching</span> pause and save progress
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_stop_watching</span> stop watching
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_add_to_watchlist</span> add to watchlist
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_mark_watched</span> mark as watched
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_remove_from_history</span> remove from watch history
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_add_rating</span> add rating (1-10)
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_remove_rating</span> remove rating
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_trending_shows</span> trending tv shows
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_trending_movies</span> trending movies
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_trending_anime</span> trending anime
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_best_shows</span> best-rated tv shows
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_best_anime</span> best-rated anime
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_airing_shows</span> airing tv shows
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_airing_anime</span> airing anime
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_show_by_id</span> show details by id
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_movie_by_id</span> movie details by id
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_anime_by_id</span> anime details by id
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_show_episodes</span> episode list for shows
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_anime_episodes</span> episode list for anime
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_shows_by_genre</span> shows by genre
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_anime_by_genre</span> anime by genre
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_movies_by_genre</span> movies by genre
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_user_stats</span> stats for a user
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_get_watchlist</span> get watchlist items
+                </div>
+                <div class="tool-item">
+                    ⏺ <span class="tool-name">simkl_my_stats</span> custom user stats helper
+                </div>
+                <p style="margin-top: 12px; font-size: 12px;">
+                    resources: <code>watchlist/{type}/{status}</code>, <code>trending/{type}/{interval}</code>
+                </p>
+            </div>
+
+            <div class="info-section">
+                <h2>setup instructions</h2>
+                <p>local (sse) - bun + wrangler</p>
+                <div class="code-block"><code>bun install
+bun run dev</code></div>
+                <div class="code-block"><code>{
+  "mcpServers": {
+    "simkl": {
+      "transport": "sse",
+      "url": "http://localhost:8787/sse"
+    }
+  }
+}</code></div>
+
+                <p class="comment" style="margin-top: 20px;">deploy to cloudflare workers</p>
+                <div class="code-block"><code>wrangler secret put SIMKL_CLIENT_ID
+wrangler secret put SIMKL_CLIENT_SECRET
+wrangler secret put OAUTH_REDIRECT_URI
+bun run deploy</code></div>
+                <div class="note">set <code>SIMKL_CLIENT_ID</code>, <code>SIMKL_CLIENT_SECRET</code>, and <code>OAUTH_REDIRECT_URI</code> either in <code>.dev.vars</code> (local) or wrangler secrets (prod). sse endpoint: <code>/sse</code>; oauth entrypoint: <code>/auth/simkl</code>.</div>
+            </div>
+
+            <div class="info-section">
+                <h2>features</h2>
+                <ul>
+                    <li>27 autogenerated tools + 1 custom user stats helper</li>
+                    <li>search, scrobble, sync, and discover content</li>
+                    <li>oauth authentication flow</li>
+                    <li>cloudflare workers + durable objects</li>
+                    <li>zero manual parameter definitions</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

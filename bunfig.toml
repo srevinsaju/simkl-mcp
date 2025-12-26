@@ -1,0 +1,7 @@
+[install]
+# install dependencies from npm registry
+registry = "https://registry.npmjs.org/"
+
+[install.scopes]
+# use local file path for @modelcontextprotocol/server
+"@modelcontextprotocol" = { }

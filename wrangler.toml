@@ -1,0 +1,29 @@
+name = "simkl-mcp"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# kv namespace for oauth provider storage
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "8a4b8130bb5c4cb8af62254d3745dcd7"
+preview_id = "SIMKL_MCP"
+
+# durable objects configuration for mcp agent
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SimklMCP"]
+
+[[durable_objects.bindings]]
+name = "MCP_OBJECT"
+class_name = "SimklMCP"
+
+# static assets configuration
+[assets]
+directory = "./static/"
+not_found_handling = "single-page-application"
+binding = "ASSETS"
+run_worker_first = [ "!/", "/*", "!/index.html" ]
+
+[vars]
+SIMKL_API_BASE_URL = "https://api.simkl.com"
