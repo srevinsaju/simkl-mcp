@@ -111,23 +111,5 @@ export const toolsWhitelist: ToolConfig[] = [
   { path: '/users/:user_id/stats', method: 'post', responseFormat: { type: 'json' }},
 
   // watchlist (sync)
-  { path: '/sync/all-items/:type/:status', method: 'get', responseFormat: {
-    type: 'simple',
-    template: (response: any, args: any) => {
-      const items = (response && response[args.type]) || [];
-      if (items.length === 0) {
-        return [`no ${args.type} with status ${args.status}`];
-      }
-      return items.slice(0, 20).map((item: any, i: number) => {
-        const media = item.show || item.movie || item.anime || {};
-        const title = media.title || 'unknown';
-        const year = media.year || 'N/A';
-        const simklId = media.ids?.simkl || 'unknown';
-        const watched = item.watched_episodes_count || 0;
-        const total = item.total_episodes_count || 0;
-        const progress = total > 0 ? ` - ${watched}/${total} episodes` : '';
-        return `${i}: [SIMKL #${simklId}] - ${title} (${year})${progress}`;
-      });
-    }
-  }},
+  { path: '/sync/all-items/:type/:status', method: 'get', responseFormat: { type: 'json' }},
 ];
