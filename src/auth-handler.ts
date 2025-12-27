@@ -41,8 +41,12 @@ export async function exchangeSimklToken(
 }
 
 function normalizeScopes(scope: unknown): string[] {
-  if (Array.isArray(scope)) return scope.map(String);
-  if (typeof scope === 'string') return scope.split(/\s+/).filter(Boolean);
+  if (Array.isArray(scope)) {
+    return scope.flatMap(value => String(value).split(/[\\s,]+/).filter(Boolean));
+  }
+  if (typeof scope === 'string') {
+    return scope.split(/[\\s,]+/).filter(Boolean);
+  }
   return [];
 }
 
@@ -78,6 +82,8 @@ export default {
 
     if (url.pathname === '/auth/simkl') {
       const oauthRequest = await env.OAUTH_PROVIDER.parseAuthRequest(request);
+      const requestedScopes = normalizeScopes(oauthRequest.scope);
+      const grantedScopes = requestedScopes.length ? requestedScopes : ['public'];
       const state = crypto.randomUUID();
 
       await env.OAUTH_KV.put(
@@ -91,6 +97,7 @@ export default {
       simklAuthUrl.searchParams.set('client_id', env.SIMKL_CLIENT_ID);
       simklAuthUrl.searchParams.set('redirect_uri', env.OAUTH_REDIRECT_URI);
       simklAuthUrl.searchParams.set('state', state);
+      simklAuthUrl.searchParams.set('scope', grantedScopes.join(' '));
 
       return Response.redirect(simklAuthUrl.toString(), 302);
     }
@@ -111,14 +118,7 @@ export default {
       const oauthRequest = JSON.parse(storedRequest);
       const simklAuthProps = await exchangeSimklToken(code, env);
       const requestedScopes = normalizeScopes(oauthRequest.scope);
-      const allowedScopes = new Set(['public']);
-      const filteredScopes = requestedScopes.filter(scope => allowedScopes.has(scope));
-
-      if (requestedScopes.length && filteredScopes.length !== requestedScopes.length) {
-        return new Response('invalid scope requested', { status: 400 });
-      }
-
-      const grantedScopes = filteredScopes.length ? filteredScopes : ['public'];
+      const grantedScopes = requestedScopes.length ? requestedScopes : ['public'];
       const resolvedUserId = await fetchSimklUserId(simklAuthProps.simklToken, env) || `simkl_user_${crypto.randomUUID()}`;
 
       const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
