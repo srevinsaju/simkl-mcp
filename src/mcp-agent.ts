@@ -108,13 +108,27 @@ export class SimklMCP extends McpAgent<Env, unknown, SimklAuthProps> {
       },
       async (uri, variables) => {
         const { type, status } = variables;
-        const response = await this.client.request<any>(`/sync/all-items/${type}/${status}`, {
-          method: 'GET',
-          query: { extended: 'full' },
-          token: this.simklToken,
-        });
+        const typeKey = type as string;
+        const fetchPage = async (page: number) =>
+          this.client.requestPaginated<any>(`/sync/all-items/${typeKey}/${status}`, {
+            method: 'GET',
+            query: { extended: 'full' },
+            token: this.simklToken,
+            pagination: { page, limit: 100 },
+          });
 
-        const items = ((response && response[type as string]) || []) as any[];
+        const firstPage = await fetchPage(1);
+        const items = ((firstPage.data && firstPage.data[typeKey]) || []) as any[];
+        const pagination = firstPage.pagination;
+
+        if (pagination && pagination.pageCount > 1) {
+          for (let page = 2; page <= pagination.pageCount; page++) {
+            const pageData = await fetchPage(page);
+            const pageItems = ((pageData.data && pageData.data[typeKey]) || []) as any[];
+            items.push(...pageItems);
+          }
+        }
+
         const baseUri = uri.toString();
 
         // return empty content if no items
