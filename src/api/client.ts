@@ -155,6 +155,8 @@ export class SimklClient {
     const url = new URL(path, this.baseUrl);
 
     url.searchParams.set('client_id', this.clientId);
+    url.searchParams.set('app-name', 'simkl-mcp');
+    url.searchParams.set('app-version', '1.0.0');
 
     if (query) {
       Object.entries(query).forEach(([key, value]) => {
@@ -169,6 +171,7 @@ export class SimklClient {
   private buildHeaders(token?: string): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'User-Agent': 'simkl-mcp/1.0.0',
     };
 
     if (token) {
