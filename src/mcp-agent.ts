@@ -2,6 +2,8 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import { McpAgent } from 'agents/mcp';
 import { z } from 'zod';
 import { SimklClient } from './api/client.js';
+import { simklTrendingPath } from './api/trending.js';
+import { getCurrentUserSettings, getUserStats } from './api/user.js';
 import { registerTools } from '../generated/tools.js';
 
 interface Env {
@@ -48,10 +50,7 @@ export class SimklMCP extends McpAgent<Env, unknown, SimklAuthProps> {
       },
       async () => {
         // get current user id from settings
-        const settings = await this.client.request<any>('/users/settings', {
-          method: 'POST',
-          token: this.simklToken,
-        });
+        const settings = await getCurrentUserSettings(this.client, this.simklToken ?? '');
 
         const userId = settings?.account?.id;
         if (!userId) {
@@ -61,10 +60,7 @@ export class SimklMCP extends McpAgent<Env, unknown, SimklAuthProps> {
         }
 
         // get stats for current user
-        const stats = await this.client.request<any>(`/users/${userId}/stats`, {
-          method: 'POST',
-          token: this.simklToken,
-        });
+        const stats = await getUserStats(this.client, Number(userId), this.simklToken ?? '');
 
         return {
           content: [{ type: 'text', text: JSON.stringify(stats, null, 2) }],
@@ -195,9 +191,9 @@ export class SimklMCP extends McpAgent<Env, unknown, SimklAuthProps> {
       },
       async (uri, variables) => {
         const { type, interval } = variables;
-        const response = await this.client.request<any[]>(`/${type}/trending/${interval}`, {
+        const response = await this.client.request<any[]>(simklTrendingPath(type as 'tv' | 'movies' | 'anime', interval as 'daily' | 'weekly' | 'monthly'), {
           method: 'GET',
-          query: { extended: 'full' },
+          authorization: 'none',
         });
 
         const items = (response || []) as any[];

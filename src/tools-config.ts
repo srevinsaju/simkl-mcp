@@ -7,6 +7,7 @@ interface ToolConfig {
   method: string;
   schemaMethod?: string;
   authorization?: 'bearer' | 'none';
+  requestPath?: { helper: string; args: string[] };
   name?: string;
   responseFormat?: ResponseFormat;
   omitParams?: string[];
@@ -49,15 +50,15 @@ export const toolsWhitelist: ToolConfig[] = [
   { path: '/sync/ratings/remove', method: 'post', responseFormat: { 'type': 'json' }},
 
   // discovery
-  { path: '/tv/trending/:interval', method: 'get', responseFormat: {
+  { path: '/tv/trending/:interval', method: 'get', authorization: 'none', requestPath: { helper: 'simklTrendingPath', args: ["'tv'", 'args.interval'] }, responseFormat: {
     type: 'simple',
     template: (results: any) => results.slice(0, 20).map((r: any, i: number) => `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} (${r.year || 'N/A'})`)
   }},
-  { path: '/movies/trending/:interval', method: 'get', responseFormat: {
+  { path: '/movies/trending/:interval', method: 'get', authorization: 'none', requestPath: { helper: 'simklTrendingPath', args: ["'movies'", 'args.interval'] }, responseFormat: {
     type: 'simple',
     template: (results: any) => results.slice(0, 20).map((r: any, i: number) => `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} (${r.year || 'N/A'})`)
   }},
-  { path: '/anime/trending/:interval', method: 'get', responseFormat: {
+  { path: '/anime/trending/:interval', method: 'get', authorization: 'none', requestPath: { helper: 'simklTrendingPath', args: ["'anime'", 'args.interval'] }, responseFormat: {
     type: 'simple',
     template: (results: any) => results.slice(0, 20).map((r: any, i: number) => `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} (${r.year || 'N/A'})`)
   }},

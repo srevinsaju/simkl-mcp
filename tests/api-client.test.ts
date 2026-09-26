@@ -75,4 +75,19 @@ describe('generated tool request policy configuration', () => {
     expect(stats?.method).toBe('get');
     expect(stats?.schemaMethod).toBe('post');
   });
+
+  test('configures existing trending tools for public data files', () => {
+    const trendingTools = [
+      '/tv/trending/:interval',
+      '/movies/trending/:interval',
+      '/anime/trending/:interval',
+    ];
+
+    for (const path of trendingTools) {
+      const tool = toolsWhitelist.find(candidate => candidate.path === path);
+      expect(tool?.method).toBe('get');
+      expect(tool?.authorization).toBe('none');
+      expect(tool?.requestPath?.helper).toBe('simklTrendingPath');
+    }
+  });
 });
