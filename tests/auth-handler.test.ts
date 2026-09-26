@@ -35,7 +35,7 @@ function setup() {
 function successfulFetch(onExchange?: () => void) {
   globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
-    if (url.pathname === '/oauth/token') {
+    if (url.pathname === '/oauth2/token') {
       onExchange?.();
       return Response.json({ access_token: 'access', refresh_token: 'refresh', expires_in: 3600 });
     }
@@ -119,7 +119,7 @@ describe('AUTH V2 handler', () => {
     let statePresentAtExchange = true;
     globalThis.fetch = mock(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
-      if (url.pathname === '/oauth/token') {
+      if (url.pathname === '/oauth2/token') {
         statePresentAtExchange = values.has('oauth_state:s');
         return new Response('sensitive upstream body', { status: 401 });
       }
@@ -149,6 +149,3 @@ describe('AUTH V2 handler', () => {
     expect(headers.get('Authorization')).toBe('Bearer access');
   });
 });
-
-
-
