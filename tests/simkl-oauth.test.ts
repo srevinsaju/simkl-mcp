@@ -32,7 +32,7 @@ describe('Simkl OAuth utilities', () => {
     }) as typeof fetch;
 
     const token = await exchangeAuthorizationCode({ code: 'one-time-code', codeVerifier: 'verifier' }, env);
-    expect(captured?.url).toBe('https://api.simkl.com/oauth/token');
+    expect(captured?.url).toBe('https://api.simkl.com/oauth2/token');
     expect(captured?.init.method).toBe('POST');
     const headers = new Headers(captured?.init.headers);
     expect(headers.get('Content-Type')).toBe('application/x-www-form-urlencoded');

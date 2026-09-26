@@ -1,4 +1,4 @@
-const TOKEN_ENDPOINT = 'https://api.simkl.com/oauth/token';
+const TOKEN_ENDPOINT = 'https://api.simkl.com/oauth2/token';
 const USER_AGENT = 'simkl-mcp/1.0.0';
 const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 const REFRESH_TOKEN_TTL_MS = 180 * 24 * 60 * 60 * 1000;
