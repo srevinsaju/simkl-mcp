@@ -224,7 +224,7 @@ function generateAnnotations(method: string, path: string): string {
   return annotations.length > 0 ? `annotations: { ${annotations.join(', ')} }` : '';
 }
 
-function generateHandler(path: string, method: string, params: any[], responseFormat: any, toolName: string, flattenedFields: Record<string, string>) {
+function generateHandler(path: string, method: string, params: any[], responseFormat: any, toolName: string, flattenedFields: Record<string, string>, authorization?: 'bearer' | 'none') {
   const queryParams = params.filter((p: any) => p.in === 'query' && p.name !== 'client_id').map((p: any) => p.name);
   const hasBody = method === 'post' || method === 'put' || method === 'patch';
 
@@ -233,6 +233,10 @@ function generateHandler(path: string, method: string, params: any[], responseFo
     .replace(/\?{(\w+)}/g, '');
 
   const parts: string[] = [`method: '${method.toUpperCase()}'`];
+
+  if (authorization) {
+    parts.push(`authorization: '${authorization}'`);
+  }
 
   if (queryParams.length > 0) {
     const queryObj = queryParams.map(p => `${p}: args.${p}`).join(', ');
@@ -276,12 +280,14 @@ for (const config of toolsWhitelist) {
   const normalized = normalizePath(config.path);
   const pathEntry = spec.paths[normalized];
 
-  if (!pathEntry || !pathEntry[config.method]) {
-    console.error(`WARNING: ${config.method} ${config.path} not found`);
+  const schemaOperation = pathEntry?.[config.schemaMethod ?? config.method];
+
+  if (!pathEntry || !schemaOperation) {
+    console.error(`WARNING: ${config.schemaMethod ?? config.method} ${config.path} not found`);
     continue;
   }
 
-  const operation = pathEntry[config.method];
+  const operation = schemaOperation;
   let params = operation.parameters || [];
 
   if (operation.requestBody) {
@@ -296,7 +302,7 @@ for (const config of toolsWhitelist) {
   }
 
   const { schema, flattenedFields } = generateParamSchema(config.path, params, config.omitParams);
-  const handler = generateHandler(config.path, config.method, params, config.responseFormat, toolName, flattenedFields);
+  const handler = generateHandler(config.path, config.method, params, config.responseFormat, toolName, flattenedFields, config.authorization);
 
   // extract clean description
   const summary = operation.summary || '';

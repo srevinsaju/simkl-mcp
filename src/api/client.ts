@@ -8,6 +8,7 @@ export interface SimklClientOptions {
 export interface RequestOptions {
   method: 'GET' | 'POST' | 'DELETE';
   token?: string;
+  authorization?: 'bearer' | 'none';
   body?: unknown;
   query?: Record<string, string | number | undefined>;
 }
@@ -97,7 +98,7 @@ export class SimklClient {
 
   private async doRequest<T = unknown>(endpoint: string, options: RequestOptions): Promise<PaginatedResult<T>> {
     const url = this.buildUrl(endpoint, options.query);
-    const headers = this.buildHeaders(options.token);
+    const headers = this.buildHeaders(options.token, options.authorization);
 
     const init: RequestInit = {
       method: options.method,
@@ -151,10 +152,18 @@ export class SimklClient {
   }
 
   private buildUrl(endpoint: string, query?: Record<string, string | number | undefined>): string {
-    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    const url = new URL(path, this.baseUrl);
+    const isAbsolute = /^[a-z][a-z\d+.-]*:\/\//i.test(endpoint);
+    const url = isAbsolute
+      ? new URL(endpoint)
+      : new URL(endpoint.startsWith('/') ? endpoint : `/${endpoint}`, this.baseUrl);
+
+    if (isAbsolute && url.protocol !== 'https:') {
+      throw new SimklApiError('simkl api error: absolute endpoint must use HTTPS', 0, null);
+    }
 
     url.searchParams.set('client_id', this.clientId);
+    url.searchParams.set('app-name', 'simkl-mcp');
+    url.searchParams.set('app-version', '1.0.0');
 
     if (query) {
       Object.entries(query).forEach(([key, value]) => {
@@ -166,12 +175,13 @@ export class SimklClient {
     return url.toString();
   }
 
-  private buildHeaders(token?: string): Record<string, string> {
+  private buildHeaders(token?: string, authorization: RequestOptions['authorization'] = 'bearer'): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'User-Agent': 'simkl-mcp/1.0.0',
     };
 
-    if (token) {
+    if (authorization === 'bearer' && token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 

@@ -5,6 +5,8 @@ type ResponseFormat =
 interface ToolConfig {
   path: string;
   method: string;
+  schemaMethod?: string;
+  authorization?: 'bearer' | 'none';
   name?: string;
   responseFormat?: ResponseFormat;
   omitParams?: string[];
@@ -60,12 +62,12 @@ export const toolsWhitelist: ToolConfig[] = [
     template: (results: any) => results.slice(0, 20).map((r: any, i: number) => `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} (${r.year || 'N/A'})`)
   }},
 
-  { path: '/tv/:id', method: 'get', responseFormat: { type: 'json' }},
-  { path: '/movies/:id', method: 'get', responseFormat: { type: 'json' }},
-  { path: '/anime/:id', method: 'get', responseFormat: { type: 'json' }},
+  { path: '/tv/:id', method: 'get', authorization: 'none', responseFormat: { type: 'json' }},
+  { path: '/movies/:id', method: 'get', authorization: 'none', responseFormat: { type: 'json' }},
+  { path: '/anime/:id', method: 'get', authorization: 'none', responseFormat: { type: 'json' }},
 
-  { path: '/tv/episodes/:id', method: 'get', responseFormat: { type: 'json' }},
-  { path: '/anime/episodes/:id', method: 'get', responseFormat: { type: 'json' }},
+  { path: '/tv/episodes/:id', method: 'get', authorization: 'none', responseFormat: { type: 'json' }},
+  { path: '/anime/episodes/:id', method: 'get', authorization: 'none', responseFormat: { type: 'json' }},
 
   { path: '/tv/best/:filter', method: 'get', responseFormat: {
     type: 'simple',
@@ -108,7 +110,7 @@ export const toolsWhitelist: ToolConfig[] = [
   }},
 
   // user stats
-  { path: '/users/:user_id/stats', method: 'post', responseFormat: { type: 'json' }},
+  { path: '/users/:user_id/stats', method: 'get', schemaMethod: 'post', responseFormat: { type: 'json' }},
 
   // watchlist (sync)
   { path: '/sync/all-items/:type/:status', method: 'get', responseFormat: { type: 'json' }},
