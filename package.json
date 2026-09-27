@@ -25,7 +25,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@cloudflare/workers-oauth-provider": "^0.2.2",
+    "@cloudflare/workers-oauth-provider": "0.2.3",
     "agents": "^0.3.0",
     "ai": "^4.1.0",
     "zod": "^4.1.8"

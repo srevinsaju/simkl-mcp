@@ -3,6 +3,7 @@ import type { SimklAuthProps } from '../src/auth/simkl-oauth.js';
 
 let createSimklTokenExchangeCallback: typeof import('../src/index.js').createSimklTokenExchangeCallback;
 let createOAuthProvider: typeof import('../src/index.js').createOAuthProvider;
+let OAuthProvider: typeof import('@cloudflare/workers-oauth-provider').OAuthProvider;
 
 const env = (id: string, secret: string) => ({
   SIMKL_CLIENT_ID: id,
@@ -31,10 +32,29 @@ function tokenResponse(accessToken: string, refreshToken?: string, expiresIn = 3
 const originalFetch = globalThis.fetch;
 const originalNow = Date.now;
 
+class MemoryKV {
+  private values = new Map<string, string>();
+
+  async get(key: string, options?: { type?: 'text' | 'json' }) {
+    const value = this.values.get(key);
+    if (value === undefined) return null;
+    return options?.type === 'json' ? JSON.parse(value) : value;
+  }
+
+  async put(key: string, value: string) {
+    this.values.set(key, value);
+  }
+
+  async delete(key: string) {
+    this.values.delete(key);
+  }
+}
+
 beforeEach(() => { Date.now = () => 1_000_000; });
 beforeAll(async () => {
   mock.module('cloudflare:workers', () => ({ WorkerEntrypoint: class {}, DurableObject: class {}, env: {} }));
   mock.module('cloudflare:email', () => ({ EmailMessage: class {} }));
+  ({ OAuthProvider } = await import('@cloudflare/workers-oauth-provider'));
   ({ createSimklTokenExchangeCallback, createOAuthProvider } = await import('../src/index.js'));
 });
 afterAll(() => mock.restore());
@@ -141,5 +161,80 @@ describe('Simkl provider token exchange callback', () => {
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: 'ok', service: 'simkl-mcp' });
+  });
+});
+
+describe('OAuthProvider MCP resource audience', () => {
+  it('accepts a token whose RFC 8707 audience is the MCP endpoint path', async () => {
+    const kv = new MemoryKV();
+    const env: any = { OAUTH_KV: kv };
+    const provider = new OAuthProvider({
+      apiHandlers: { '/mcp': { fetch: async () => new Response('handled') } },
+      defaultHandler: {
+        fetch: async (request: Request, handlerEnv: any) => {
+          const oauthRequest = await handlerEnv.OAUTH_PROVIDER.parseAuthRequest(request);
+          const { redirectTo } = await handlerEnv.OAUTH_PROVIDER.completeAuthorization({
+            request: oauthRequest,
+            userId: 'user-1',
+            scope: oauthRequest.scope,
+            props: {},
+          });
+          return Response.redirect(redirectTo, 302);
+        },
+      },
+      authorizeEndpoint: '/authorize',
+      tokenEndpoint: '/token',
+      clientRegistrationEndpoint: '/register',
+    });
+    const context = { waitUntil() {}, passThroughOnException() {} } as ExecutionContext;
+    const fetchProvider = (request: Request) => provider.fetch(request, env, context);
+
+    const registrationResponse = await fetchProvider(new Request('https://worker.test/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ redirect_uris: ['https://chat.example/callback'], token_endpoint_auth_method: 'none' }),
+    }));
+    const { client_id: clientId } = await registrationResponse.json() as { client_id: string };
+    const verifier = 'mcp-audience-test-verifier-012345678901234567890';
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+    const challenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    const resource = 'https://worker.test/mcp';
+    const authorizationUrl = new URL('https://worker.test/authorize');
+    authorizationUrl.search = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientId,
+      redirect_uri: 'https://chat.example/callback',
+      scope: 'read',
+      state: 'state',
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      resource,
+    }).toString();
+    const authorizationResponse = await fetchProvider(new Request(authorizationUrl));
+    const code = new URL(authorizationResponse.headers.get('location')!).searchParams.get('code')!;
+
+    const tokenResponse = await fetchProvider(new Request('https://worker.test/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        code,
+        redirect_uri: 'https://chat.example/callback',
+        code_verifier: verifier,
+        resource,
+      }),
+    }));
+    expect(tokenResponse.status).toBe(200);
+    const { access_token: accessToken } = await tokenResponse.json() as { access_token: string };
+
+    const mcpResponse = await fetchProvider(new Request('https://worker.test/mcp', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
+    }));
+    expect(mcpResponse.status).toBe(200);
+    expect(await mcpResponse.text()).toBe('handled');
   });
 });
