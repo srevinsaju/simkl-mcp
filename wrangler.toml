@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 # kv namespace for oauth provider storage
 [[kv_namespaces]]
 binding = "OAUTH_KV"
-id = "8a4b8130bb5c4cb8af62254d3745dcd7"
+id = "dd708cbd426048878d4032bb1b752e44"
 preview_id = "SIMKL_MCP"
 
 # durable objects configuration for mcp agent
