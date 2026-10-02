@@ -17,8 +17,8 @@
   ```
 - Install deps: `bun install`
 
-## Local (SSE)
-Run the worker with Wrangler and point your MCP client at the SSE endpoint.
+## Local (Streamable HTTP)
+Run the worker with Wrangler and point your MCP client at the Streamable HTTP endpoint.
 ```bash
 bun run dev
 ```
@@ -27,13 +27,15 @@ Add to `claude_desktop_config.json` (or equivalent):
 {
   "mcpServers": {
     "simkl": {
-      "transport": "sse",
-      "url": "http://localhost:8787/sse"
+      "transport": "streamable-http",
+      "url": "http://localhost:8787/mcp"
     }
   }
 }
 ```
-On first connect, you’ll be redirected to Simkl to approve access, then dropped back to `/oauth/callback`.
+For local development, use `http://localhost:8787/mcp`; for a deployed Worker, replace the host with your Worker URL, such as `https://your-worker.workers.dev/mcp`. On first connect, you’ll be redirected to Simkl to approve access, then returned to `/oauth/callback`.
+
+The `/sse` endpoint remains available for MCP clients that require the legacy SSE transport. Prefer `/mcp` for new connections.
 
 ## Deploy (Cloudflare Workers)
 ```bash
@@ -43,7 +45,7 @@ wrangler secret put OAUTH_REDIRECT_URI # e.g., https://your-worker.workers.dev/o
 bun run deploy            # staging
 bun run deploy:production # optional
 ```
-Use `https://your-worker.workers.dev/sse` for remote SSE connections (Claude: Settings → Connectors → Add Server).
+Configure remote MCP clients to use `https://your-worker.workers.dev/mcp` with Streamable HTTP (Claude: Settings → Connectors → Add Server). Use `https://your-worker.workers.dev/sse` only for clients that still require the legacy SSE transport.
 
 ## Tools
 - **Search**: `simkl_search`, `simkl_search_id`
