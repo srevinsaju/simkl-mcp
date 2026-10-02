@@ -23,10 +23,27 @@ function props(expiresAt: number, refreshToken = 'refresh-old'): SimklAuthProps 
 }
 
 function tokenResponse(accessToken: string, refreshToken?: string, expiresIn = 3600) {
-  return new Response(JSON.stringify({ access_token: accessToken, refresh_token: refreshToken, expires_in: expiresIn }), {
+  return new Response(JSON.stringify({ access_token: accessToken, token_type: 'Bearer', refresh_token: refreshToken, expires_in: expiresIn }), {
     status: 200,
     headers: { 'content-type': 'application/json' },
   });
+}
+
+function discoveryResponse() {
+  return new Response(JSON.stringify({
+    issuer: 'https://simkl.com',
+    token_endpoint: 'https://api.simkl.com/oauth/token',
+    response_types_supported: ['code'],
+    token_endpoint_auth_methods_supported: ['client_secret_basic'],
+    code_challenge_methods_supported: ['S256'],
+  }), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+function refreshFetchStub(tokenHandler: typeof fetch = (() => Promise.resolve(tokenResponse('access-new', 'refresh-new', 120))) as typeof fetch) {
+  return mock(((input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes('/.well-known/oauth-authorization-server')) return Promise.resolve(discoveryResponse());
+    return tokenHandler(input, init);
+  }) as typeof fetch) as typeof fetch;
 }
 
 const originalFetch = globalThis.fetch;
@@ -87,12 +104,15 @@ describe('Simkl provider token exchange callback', () => {
   });
 
   it.each([['inside safety window', 50_000], ['expired', -1_000]])('refreshes when token is %s', async (_label, remaining) => {
-    globalThis.fetch = mock(() => Promise.resolve(tokenResponse('access-new', 'refresh-new', 120))) as typeof fetch;
+    globalThis.fetch = refreshFetchStub();
     const current = props(Date.now() + remaining);
     const result = await createSimklTokenExchangeCallback(env('client', 'secret'))({
       grantType: 'refresh_token', clientId: 'local-client', userId: 'simkl-user', scope: [], props: current,
     });
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    const tokenCall = globalThis.fetch.mock.calls.find(([input]) => !String(input).includes('/.well-known/oauth-authorization-server'));
+    expect(tokenCall).toBeDefined();
+    expect(atob(new Headers(tokenCall?.[1]?.headers).get('Authorization')!.slice('Basic '.length))).toBe('client:secret');
     expect(result.accessTokenTTL).toBe(120);
     expect(result.newProps).toMatchObject({
       simklToken: 'access-new', simklRefreshToken: 'refresh-new', custom: 'preserved', simklScope: 'media:read',
@@ -102,17 +122,23 @@ describe('Simkl provider token exchange callback', () => {
   it('coalesces simultaneous refreshes from separate request callbacks and preserves the old refresh token', async () => {
     let resolveResponse!: (response: Response) => void;
     let authorization: string | null = null;
-    globalThis.fetch = mock(((_input: RequestInfo | URL, init?: RequestInit) => {
+    let tokenRequests = 0;
+    let resolveTokenRequestStarted!: () => void;
+    const tokenRequestStarted = new Promise<void>(resolve => { resolveTokenRequestStarted = resolve; });
+    globalThis.fetch = refreshFetchStub(((_input: RequestInfo | URL, init?: RequestInit) => {
+      tokenRequests += 1;
       authorization = new Headers(init?.headers).get('Authorization');
+      resolveTokenRequestStarted();
       return new Promise<Response>(resolve => { resolveResponse = resolve; });
-    }) as typeof fetch) as typeof fetch;
+    }) as typeof fetch);
     const callbackA = createSimklTokenExchangeCallback(env('request-a', 'secret-a'));
     const callbackB = createSimklTokenExchangeCallback(env('request-b', 'secret-b'));
     const options = { grantType: 'refresh_token' as const, clientId: 'local-client', userId: 'simkl-user', scope: [], props: props(Date.now()) };
     const first = callbackA(options);
     const second = callbackB(options);
-    await Promise.resolve();
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    await tokenRequestStarted;
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(tokenRequests).toBe(1);
     expect(atob(authorization!.slice('Basic '.length))).toBe('request-a:secret-a');
     resolveResponse(tokenResponse('access-new'));
     const [a, b] = await Promise.all([first, second]);
@@ -121,7 +147,7 @@ describe('Simkl provider token exchange callback', () => {
   });
 
   it('reports a sanitized failure without exposing credentials or refresh tokens', async () => {
-    globalThis.fetch = mock(() => Promise.resolve(new Response('failure', { status: 401 }))) as typeof fetch;
+    globalThis.fetch = refreshFetchStub((() => Promise.resolve(new Response('failure', { status: 401 }))) as typeof fetch);
     const secretEnv = env('client-secret-id', 'very-secret-client-secret');
     const callback = createSimklTokenExchangeCallback(secretEnv);
     const error = await callback({
@@ -129,15 +155,16 @@ describe('Simkl provider token exchange callback', () => {
     }).catch(caught => caught as Error);
     expect(error.message).toBe('Unable to refresh Simkl token');
     expect(error.message).not.toMatch(/very-secret-client-secret|refresh-old/);
-    expect(String(globalThis.fetch.mock.calls[0]?.[1]?.headers)).not.toContain('very-secret-client-secret');
+    const tokenCall = globalThis.fetch.mock.calls.find(([input]) => !String(input).includes('/.well-known/oauth-authorization-server'));
+    expect(String(tokenCall?.[1]?.headers)).not.toContain('very-secret-client-secret');
   });
 
   it('binds each callback to the Worker env supplied when its provider is created', async () => {
     let authorization: string | null = null;
-    globalThis.fetch = mock(((_input: RequestInfo | URL, init?: RequestInit) => {
+    globalThis.fetch = refreshFetchStub(((_input: RequestInfo | URL, init?: RequestInit) => {
       authorization = new Headers(init?.headers).get('Authorization');
       return Promise.resolve(tokenResponse('access-new', 'refresh-new'));
-    }) as typeof fetch) as typeof fetch;
+    }) as typeof fetch);
     const opts = { grantType: 'refresh_token' as const, clientId: 'local-client', userId: 'simkl-user', scope: [], props: props(Date.now()) };
     const firstRequestCallback = createSimklTokenExchangeCallback(env('first-client', 'first-secret'));
     const secondRequestCallback = createSimklTokenExchangeCallback(env('second-client', 'second-secret'));
