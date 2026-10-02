@@ -4,6 +4,7 @@ import {
   type SimklAuthProps,
   type SimklOAuthEnv,
 } from './auth/simkl-oauth';
+import { APP_NAME, APP_VERSION, USER_AGENT } from './app-info';
 
 interface Env extends SimklOAuthEnv {
   SIMKL_API_BASE_URL?: string;
@@ -44,12 +45,12 @@ async function fetchSimklUserId(simklToken: string, env: Env): Promise<string | 
   const baseUrl = env.SIMKL_API_BASE_URL || 'https://api.simkl.com';
   const settingsUrl = new URL('/users/settings', baseUrl);
   settingsUrl.searchParams.set('client_id', env.SIMKL_CLIENT_ID);
-  settingsUrl.searchParams.set('app-name', 'simkl-mcp');
-  settingsUrl.searchParams.set('app-version', '1.0.0');
+  settingsUrl.searchParams.set('app-name', APP_NAME);
+  settingsUrl.searchParams.set('app-version', APP_VERSION);
   try {
     const response = await fetch(settingsUrl.toString(), {
       method: 'GET',
-      headers: { Authorization: `Bearer ${simklToken}`, 'User-Agent': 'simkl-mcp/1.0.0' },
+      headers: { Authorization: `Bearer ${simklToken}`, 'User-Agent': USER_AGENT },
     });
     if (!response.ok) return undefined;
     const settings = await response.json() as { account?: { id?: string | number } };

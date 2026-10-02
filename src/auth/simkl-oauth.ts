@@ -1,7 +1,7 @@
 import * as oauth from 'oauth4webapi';
+import { USER_AGENT } from '../app-info';
 
 const SIMKL_ISSUER = new URL('https://simkl.com');
-const USER_AGENT = 'simkl-mcp/1.0.0';
 const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 const REFRESH_TOKEN_TTL_MS = 180 * 24 * 60 * 60 * 1000;
 

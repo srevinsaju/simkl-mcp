@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { SimklClient } from '../src/api/client';
+import { APP_NAME, APP_VERSION, USER_AGENT } from '../src/app-info';
 
 describe('Simkl AUTH V2 API request identification', () => {
   let originalFetch: typeof fetch;
@@ -23,9 +24,9 @@ describe('Simkl AUTH V2 API request identification', () => {
     await client.request('/users/settings', { method: 'GET', token: 'access-token' });
 
     expect(request?.url.searchParams.get('client_id')).toBe('auth-v2-client');
-    expect(request?.url.searchParams.get('app-name')).toBe('simkl-mcp');
-    expect(request?.url.searchParams.get('app-version')).toBe('1.0.0');
-    expect(new Headers(request?.init.headers).get('User-Agent')).toBe('simkl-mcp/1.0.0');
+    expect(request?.url.searchParams.get('app-name')).toBe(APP_NAME);
+    expect(request?.url.searchParams.get('app-version')).toBe(APP_VERSION);
+    expect(new Headers(request?.init.headers).get('User-Agent')).toBe(USER_AGENT);
     expect(new Headers(request?.init.headers).get('Authorization')).toBe('Bearer access-token');
   });
 });

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { APP_NAME, APP_VERSION, USER_AGENT } from '../src/app-info';
 import handler from '../src/auth-handler';
 
 const originalFetch = globalThis.fetch;
@@ -155,10 +156,14 @@ describe('AUTH V2 handler', () => {
     successfulFetch();
     await handler.fetch(new Request('https://service.example/oauth/callback?code=c&state=s&iss=https%3A%2F%2Fsimkl.com'), env);
     const settingsCall = (globalThis.fetch as ReturnType<typeof mock>).mock.calls[2];
-    expect(String(settingsCall[0])).toBe('https://api.simkl.com/users/settings?client_id=client-id&app-name=simkl-mcp&app-version=1.0.0');
+    const settingsUrl = new URL(String(settingsCall[0]));
+    expect(settingsUrl.origin + settingsUrl.pathname).toBe('https://api.simkl.com/users/settings');
+    expect(settingsUrl.searchParams.get('client_id')).toBe('client-id');
+    expect(settingsUrl.searchParams.get('app-name')).toBe(APP_NAME);
+    expect(settingsUrl.searchParams.get('app-version')).toBe(APP_VERSION);
     expect(settingsCall[1]?.method).toBe('GET');
     const headers = new Headers(settingsCall[1]?.headers);
-    expect(headers.get('User-Agent')).toBe('simkl-mcp/1.0.0');
+    expect(headers.get('User-Agent')).toBe(USER_AGENT);
     expect(headers.get('Authorization')).toBe('Bearer access');
   });
 });

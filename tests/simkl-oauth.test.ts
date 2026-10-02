@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 import { createPkcePair, exchangeAuthorizationCode, refreshSimklToken } from '../src/auth/simkl-oauth';
+import { USER_AGENT } from '../src/app-info';
 
 const env = {
   SIMKL_CLIENT_ID: 'client-id',
@@ -50,7 +51,7 @@ describe('Simkl OAuth utilities', () => {
     expect(captured.init.method).toBe('POST');
     const headers = new Headers(captured.init.headers);
     expect(headers.get('Content-Type')).toBe('application/x-www-form-urlencoded');
-    expect(headers.get('User-Agent')).toBe('simkl-mcp/1.0.0');
+    expect(headers.get('User-Agent')).toBe(USER_AGENT);
     expect(headers.get('Authorization')).toBe(`Basic ${btoa('client-id:client-secret')}`);
     const body = new URLSearchParams(String(captured.init.body));
     expect(Object.fromEntries(body)).toEqual({

@@ -1,3 +1,4 @@
+import { APP_NAME, APP_VERSION } from './app-info';
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import { z } from 'zod';
@@ -18,8 +19,8 @@ interface SimklAuthProps extends Record<string, unknown> {
 
 export class SimklMCP extends McpAgent<Env, unknown, SimklAuthProps> {
   server = new McpServer({
-    name: 'simkl-mcp-server',
-    version: '1.0.0',
+    name: `${APP_NAME}-server`,
+    version: APP_VERSION,
   });
 
   private client!: SimklClient;
