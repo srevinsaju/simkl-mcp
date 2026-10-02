@@ -32,6 +32,7 @@ function tokenResponse(accessToken: string, refreshToken?: string, expiresIn = 3
 function discoveryResponse() {
   return new Response(JSON.stringify({
     issuer: 'https://simkl.com',
+    authorization_endpoint: 'https://simkl.com/oauth2/authorize',
     token_endpoint: 'https://api.simkl.com/oauth/token',
     response_types_supported: ['code'],
     token_endpoint_auth_methods_supported: ['client_secret_basic'],
