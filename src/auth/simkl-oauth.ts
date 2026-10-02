@@ -103,7 +103,7 @@ function toSimklTokenSet(
   data: oauth.TokenEndpointResponse,
   priorRefreshToken?: string
 ): SimklTokenSet {
-  if (!data.access_token || data.token_type !== 'bearer') {
+  if (!data.access_token || data.token_type.toLowerCase() !== 'bearer') {
     throw new Error('Simkl token response was missing required token fields');
   }
 
