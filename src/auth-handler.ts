@@ -109,7 +109,11 @@ export default {
       // state first so a failed exchange cannot make a replay retry that code.
       await env.OAUTH_KV.delete(key);
       try {
-        const tokenSet = await exchangeAuthorizationCode({ code, codeVerifier: pending.codeVerifier }, env);
+        const tokenSet = await exchangeAuthorizationCode({
+          callbackUrl: url,
+          expectedState: state,
+          codeVerifier: pending.codeVerifier,
+        }, env);
         const props: SimklAuthProps = {
           simklToken: tokenSet.accessToken,
           simklRefreshToken: tokenSet.refreshToken,

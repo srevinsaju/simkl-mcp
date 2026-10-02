@@ -34,14 +34,19 @@ export async function createPkcePair(): Promise<{ codeVerifier: string; codeChal
 }
 
 export async function exchangeAuthorizationCode(
-  input: { code: string; codeVerifier: string },
+  input: { callbackUrl: URL; expectedState: string; codeVerifier: string },
   env: SimklOAuthEnv
 ): Promise<SimklTokenSet> {
   const { authorizationServer, client, clientAuth } = await getOAuthClient(env);
-  const callbackParameters = new URLSearchParams({ code: input.code });
 
   let tokenResponse: oauth.TokenEndpointResponse;
   try {
+    const callbackParameters = oauth.validateAuthResponse(
+      authorizationServer,
+      client,
+      input.callbackUrl,
+      input.expectedState
+    );
     const response = await oauth.authorizationCodeGrantRequest(
       authorizationServer,
       client,

@@ -45,7 +45,13 @@ describe('Simkl OAuth utilities', () => {
       return Response.json({ access_token: 'access', token_type: 'Bearer', refresh_token: 'refresh', expires_in: 604800 });
     }) as typeof fetch;
 
-    const token = await exchangeAuthorizationCode({ code: 'one-time-code', codeVerifier: 'verifier' }, env);
+    const expectedState = 'expected-state';
+    const callbackUrl = new URL(env.OAUTH_REDIRECT_URI);
+    callbackUrl.searchParams.set('code', 'one-time-code');
+    callbackUrl.searchParams.set('state', expectedState);
+    callbackUrl.searchParams.set('iss', 'https://simkl.com');
+
+    const token = await exchangeAuthorizationCode({ callbackUrl, expectedState, codeVerifier: 'verifier' }, env);
     const captured = requests[0];
     expect(captured.url).toBe('https://api.simkl.com/oauth2/token');
     expect(captured.init.method).toBe('POST');
@@ -64,6 +70,28 @@ describe('Simkl OAuth utilities', () => {
     expect(token.refreshToken).toBe('refresh');
     expect(token.expiresAt).toBeGreaterThan(Date.now());
     expect(token.refreshExpiresAt - Date.now()).toBeGreaterThan(179 * 24 * 60 * 60 * 1000);
+  });
+
+  test('rejects an unexpected callback state before token exchange', async () => {
+    let tokenRequests = 0;
+    globalThis.fetch = mock(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/.well-known/oauth-authorization-server') return discoveryResponse();
+      tokenRequests++;
+      return Response.json({ access_token: 'access', token_type: 'Bearer', refresh_token: 'refresh' });
+    }) as typeof fetch;
+
+    const callbackUrl = new URL(env.OAUTH_REDIRECT_URI);
+    callbackUrl.searchParams.set('code', 'one-time-code');
+    callbackUrl.searchParams.set('state', 'unexpected-state');
+    callbackUrl.searchParams.set('iss', 'https://simkl.com');
+
+    await expect(exchangeAuthorizationCode({
+      callbackUrl,
+      expectedState: 'expected-state',
+      codeVerifier: 'verifier',
+    }, env)).rejects.toThrow();
+    expect(tokenRequests).toBe(0);
   });
 
   test('refreshes with a form grant and preserves the prior refresh token if omitted', async () => {
