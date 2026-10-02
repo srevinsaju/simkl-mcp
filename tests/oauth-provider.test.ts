@@ -33,7 +33,7 @@ function discoveryResponse() {
   return new Response(JSON.stringify({
     issuer: 'https://simkl.com',
     authorization_endpoint: 'https://simkl.com/oauth2/authorize',
-    token_endpoint: 'https://api.simkl.com/oauth/token',
+    token_endpoint: 'https://api.simkl.com/oauth2/token',
     response_types_supported: ['code'],
     token_endpoint_auth_methods_supported: ['client_secret_basic'],
     code_challenge_methods_supported: ['S256'],
