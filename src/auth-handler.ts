@@ -135,7 +135,7 @@ export default {
     }
 
     if (url.pathname === '/health') {
-      return new Response(JSON.stringify({ status: 'ok', service: 'simkl-mcp' }), {
+      return new Response(JSON.stringify({ status: 'ok', service: APP_NAME }), {
         headers: { 'content-type': 'application/json' },
       });
     }
