@@ -1,4 +1,6 @@
-const TOKEN_ENDPOINT = 'https://api.simkl.com/oauth2/token';
+import * as oauth from 'oauth4webapi';
+
+const SIMKL_ISSUER = new URL('https://simkl.com');
 const USER_AGENT = 'simkl-mcp/1.0.0';
 const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 const REFRESH_TOKEN_TTL_MS = 180 * 24 * 60 * 60 * 1000;
@@ -26,64 +28,88 @@ export interface SimklAuthProps extends Record<string, unknown> {
 }
 
 export async function createPkcePair(): Promise<{ codeVerifier: string; codeChallenge: string }> {
-  const random = crypto.getRandomValues(new Uint8Array(32));
-  const codeVerifier = base64UrlEncode(random);
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier));
-  return { codeVerifier, codeChallenge: base64UrlEncode(new Uint8Array(digest)) };
+  const codeVerifier = oauth.generateRandomCodeVerifier();
+  const codeChallenge = await oauth.calculatePKCECodeChallenge(codeVerifier);
+  return { codeVerifier, codeChallenge };
 }
 
-export function exchangeAuthorizationCode(
+export async function exchangeAuthorizationCode(
   input: { code: string; codeVerifier: string },
   env: SimklOAuthEnv
 ): Promise<SimklTokenSet> {
-  return requestToken({
-    code: input.code,
-    code_verifier: input.codeVerifier,
-    grant_type: 'authorization_code',
-    redirect_uri: env.OAUTH_REDIRECT_URI,
-  }, env);
-}
+  const { authorizationServer, client, clientAuth } = await getOAuthClient(env);
+  const callbackParameters = new URLSearchParams({ code: input.code });
 
-export function refreshSimklToken(refreshToken: string, env: SimklOAuthEnv): Promise<SimklTokenSet> {
-  return requestToken({
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken,
-  }, env, refreshToken);
-}
-
-async function requestToken(
-  fields: Record<string, string>,
-  env: SimklOAuthEnv,
-  priorRefreshToken?: string
-): Promise<SimklTokenSet> {
-  const response = await fetch(TOKEN_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${btoa(`${env.SIMKL_CLIENT_ID}:${env.SIMKL_CLIENT_SECRET}`)}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': USER_AGENT,
-    },
-    body: new URLSearchParams(fields).toString(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Simkl token request failed with status ${response.status}`);
-  }
-
-  let data: unknown;
+  let tokenResponse: oauth.TokenEndpointResponse;
   try {
-    data = await response.json();
-  } catch {
-    throw new Error('Simkl token response was not valid JSON');
+    const response = await oauth.authorizationCodeGrantRequest(
+      authorizationServer,
+      client,
+      clientAuth,
+      callbackParameters,
+      env.OAUTH_REDIRECT_URI,
+      input.codeVerifier,
+      { headers: { 'User-Agent': USER_AGENT } }
+    );
+    tokenResponse = await oauth.processAuthorizationCodeResponse(authorizationServer, client, response);
+  } catch (error) {
+    throwTokenError(error);
   }
+  return toSimklTokenSet(tokenResponse);
+}
 
-  if (!isTokenResponse(data)) {
+export async function refreshSimklToken(refreshToken: string, env: SimklOAuthEnv): Promise<SimklTokenSet> {
+  const { authorizationServer, client, clientAuth } = await getOAuthClient(env);
+
+  let tokenResponse: oauth.TokenEndpointResponse;
+  try {
+    const response = await oauth.refreshTokenGrantRequest(
+      authorizationServer,
+      client,
+      clientAuth,
+      refreshToken,
+      { headers: { 'User-Agent': USER_AGENT } }
+    );
+    tokenResponse = await oauth.processRefreshTokenResponse(authorizationServer, client, response);
+  } catch (error) {
+    throwTokenError(error);
+  }
+  return toSimklTokenSet(tokenResponse, refreshToken);
+}
+
+async function getOAuthClient(env: SimklOAuthEnv) {
+  try {
+    const response = await oauth.discoveryRequest(SIMKL_ISSUER, {
+      algorithm: 'oauth2',
+      headers: { 'User-Agent': USER_AGENT },
+    });
+    const authorizationServer = await oauth.processDiscoveryResponse(SIMKL_ISSUER, response);
+    if (!authorizationServer.token_endpoint) {
+      throw new Error('Missing token endpoint');
+    }
+
+    return {
+      authorizationServer,
+      client: { client_id: env.SIMKL_CLIENT_ID },
+      clientAuth: oauth.ClientSecretBasic(env.SIMKL_CLIENT_SECRET),
+    };
+  } catch {
+    // Discovery errors can contain response data. Keep credentials and protocol details out of errors.
+    throw new Error('Simkl authorization server discovery failed');
+  }
+}
+
+function toSimklTokenSet(
+  data: oauth.TokenEndpointResponse,
+  priorRefreshToken?: string
+): SimklTokenSet {
+  if (!data.access_token || data.token_type !== 'bearer') {
     throw new Error('Simkl token response was missing required token fields');
   }
 
   const now = Date.now();
-  const expiresIn = Number.isFinite(data.expires_in) && data.expires_in! > 0
-    ? data.expires_in!
+  const expiresIn = typeof data.expires_in === 'number' && Number.isFinite(data.expires_in) && data.expires_in > 0
+    ? data.expires_in
     : DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
   const returnedRefreshToken = typeof data.refresh_token === 'string' && data.refresh_token.length > 0
     ? data.refresh_token
@@ -101,19 +127,13 @@ async function requestToken(
   };
 }
 
-function isTokenResponse(value: unknown): value is {
-  access_token: string;
-  refresh_token?: string;
-  expires_in?: number;
-  scope?: string;
-} {
-  if (typeof value !== 'object' || value === null) return false;
-  const record = value as Record<string, unknown>;
-  return typeof record.access_token === 'string' && record.access_token.length > 0;
-}
-
-function base64UrlEncode(bytes: Uint8Array): string {
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+function throwTokenError(error: unknown): never {
+  const candidate = error as { status?: unknown; code?: unknown } | null;
+  if (candidate && Number.isInteger(candidate.status) && (candidate.status as number) >= 100) {
+    throw new Error(`Simkl token request failed with status ${candidate.status}`);
+  }
+  if (candidate?.code === 'OAUTH_RESPONSE_IS_NOT_JSON') {
+    throw new Error('Simkl token response was not valid JSON');
+  }
+  throw new Error('Simkl token response was missing required token fields');
 }
