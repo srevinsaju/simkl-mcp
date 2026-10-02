@@ -20,7 +20,7 @@
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["@types/node", "@types/bun"]
+    "types": ["@types/node", "@types/bun", "@cloudflare/workers-types"]
   },
   "include": ["worker-configuration.d.ts", "src/**/*", "scripts/**/*"],
   "exclude": ["node_modules/**/*", "!node_modules/@modelcontextprotocol", "dist", ".wrangler", "src/generated"]
