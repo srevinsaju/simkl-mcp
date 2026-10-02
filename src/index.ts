@@ -6,6 +6,8 @@ import { refreshSimklToken, type SimklAuthProps, type SimklOAuthEnv, type SimklT
 
 export { SimklMCP };
 
+type Env = WorkerEnv & SimklOAuthEnv;
+
 const REFRESH_SAFETY_WINDOW_MS = 60_000;
 const inFlightRefreshes = new Map<string, Promise<SimklTokenSet>>();
 
@@ -73,7 +75,7 @@ export function createSimklTokenExchangeCallback(env: SimklOAuthEnv) {
   };
 }
 
-export function createOAuthProvider(env: SimklOAuthEnv): OAuthProvider {
+export function createOAuthProvider(env: Env): OAuthProvider {
   return new OAuthProvider({
     apiHandlers: {
       '/sse': SimklMCP.serveSSE('/sse'),
@@ -90,7 +92,7 @@ export function createOAuthProvider(env: SimklOAuthEnv): OAuthProvider {
 }
 
 export default {
-  fetch(request: Request, env: SimklOAuthEnv, ctx: ExecutionContext): Promise<Response> {
+  fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     return createOAuthProvider(env).fetch(request, env, ctx);
   },
 };

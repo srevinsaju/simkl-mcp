@@ -6,13 +6,11 @@ import {
 } from './auth/simkl-oauth';
 import { APP_NAME, APP_VERSION, USER_AGENT } from './app-info';
 
-interface Env extends SimklOAuthEnv {
-  SIMKL_API_BASE_URL?: string;
+interface Env extends WorkerEnv, SimklOAuthEnv {
   OAUTH_PROVIDER: {
     parseAuthRequest(request: Request): Promise<unknown>;
     completeAuthorization(input: { request: unknown; userId: string; scope: string[]; props: SimklAuthProps }): Promise<{ redirectTo: string }>;
   };
-  OAUTH_KV: KVNamespace;
 }
 
 interface PendingOAuthState {
