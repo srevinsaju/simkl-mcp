@@ -32,12 +32,23 @@ function setup() {
   return { env, values, puts, deletes, completeAuthorization };
 }
 
+function discoveryResponse(): Response {
+  return Response.json({
+    issuer: 'https://simkl.com',
+    authorization_endpoint: 'https://simkl.com/oauth2/authorize',
+    token_endpoint: 'https://api.simkl.com/oauth2/token',
+    token_endpoint_auth_methods_supported: ['client_secret_basic'],
+    code_challenge_methods_supported: ['S256'],
+  });
+}
+
 function successfulFetch(onExchange?: () => void) {
   globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
+    if (url.pathname === '/.well-known/oauth-authorization-server') return discoveryResponse();
     if (url.pathname === '/oauth2/token') {
       onExchange?.();
-      return Response.json({ access_token: 'access', refresh_token: 'refresh', expires_in: 3600 });
+      return Response.json({ access_token: 'access', token_type: 'Bearer', refresh_token: 'refresh', expires_in: 3600 });
     }
     if (url.pathname === '/users/settings') return Response.json({ account: { id: 42 } });
     throw new Error(`unexpected URL ${url}`);
@@ -73,8 +84,8 @@ describe('AUTH V2 handler', () => {
     const response = await handler.fetch(new Request('https://service.example/oauth/callback?code=single-use&state=s&iss=https%3A%2F%2Fsimkl.com'), env);
     expect(response.status).toBe(302);
     expect(response.headers.get('Location')).toBe('https://client.example/done');
-    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
-    const tokenCall = (globalThis.fetch as ReturnType<typeof mock>).mock.calls[0];
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    const tokenCall = (globalThis.fetch as ReturnType<typeof mock>).mock.calls[1];
     const form = new URLSearchParams(String(tokenCall[1]?.body));
     expect(form.get('code_verifier')).toBe('stored-verifier-abcdefghijklmnopqrstuvwxyz0123456789');
     expect(completeAuthorization).toHaveBeenCalledWith(expect.objectContaining({
@@ -119,6 +130,7 @@ describe('AUTH V2 handler', () => {
     let statePresentAtExchange = true;
     globalThis.fetch = mock(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
+      if (url.pathname === '/.well-known/oauth-authorization-server') return discoveryResponse();
       if (url.pathname === '/oauth2/token') {
         statePresentAtExchange = values.has('oauth_state:s');
         return new Response('sensitive upstream body', { status: 401 });
@@ -132,7 +144,7 @@ describe('AUTH V2 handler', () => {
     expect(await first.text()).not.toContain('sensitive');
     expect(replay.status).toBe(400);
     expect(statePresentAtExchange).toBe(false);
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
     expect(deletes).toContain('oauth_state:s');
   });
 
@@ -141,7 +153,7 @@ describe('AUTH V2 handler', () => {
     values.set('oauth_state:s', JSON.stringify({ oauthRequest: {}, codeVerifier: 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG', createdAt: Date.now() }));
     successfulFetch();
     await handler.fetch(new Request('https://service.example/oauth/callback?code=c&state=s&iss=https%3A%2F%2Fsimkl.com'), env);
-    const settingsCall = (globalThis.fetch as ReturnType<typeof mock>).mock.calls[1];
+    const settingsCall = (globalThis.fetch as ReturnType<typeof mock>).mock.calls[2];
     expect(String(settingsCall[0])).toBe('https://api.simkl.com/users/settings?client_id=client-id&app-name=simkl-mcp&app-version=1.0.0');
     expect(settingsCall[1]?.method).toBe('GET');
     const headers = new Headers(settingsCall[1]?.headers);
