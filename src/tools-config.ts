@@ -1,5 +1,7 @@
+import { asAiring, formatList, withImdb, withRating } from './format/media.js';
+
 type ResponseFormat =
-  | { type: 'simple', template: (result: any, args: any) => string }
+  | { type: 'simple', template: (result: any, args: any) => string | string[] }
   | { type: 'json' };
 
 interface ToolConfig {
@@ -18,9 +20,7 @@ export const toolsWhitelist: ToolConfig[] = [
   { path: '/search/:type', method: 'get', responseFormat: {
     type: 'simple',
     template: (results: any, args: any) => results.length > 0
-      ? results.slice(0, 10).map((r: any, i: number) =>
-          `${i}: [SIMKL #${r.ids?.simkl_id}] - ${r.title} (${r.year || 'N/A'}) - imdb:${r.ids?.imdb || 'N/A'}`
-        )
+      ? formatList(results, withImdb, 10)
       : [`no results for "${args.q}"`]
   }},
   { path: '/search/id', method: 'get', responseFormat: { type: 'json' }},
@@ -52,15 +52,15 @@ export const toolsWhitelist: ToolConfig[] = [
   // discovery
   { path: '/tv/trending/:interval', method: 'get', authorization: 'none', requestPath: { helper: 'simklTrendingPath', args: ["'tv'", 'args.interval'] }, responseFormat: {
     type: 'simple',
-    template: (results: any) => results.slice(0, 20).map((r: any, i: number) => `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} (${r.year || 'N/A'})`)
+    template: (results: any) => formatList(results)
   }},
   { path: '/movies/trending/:interval', method: 'get', authorization: 'none', requestPath: { helper: 'simklTrendingPath', args: ["'movies'", 'args.interval'] }, responseFormat: {
     type: 'simple',
-    template: (results: any) => results.slice(0, 20).map((r: any, i: number) => `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} (${r.year || 'N/A'})`)
+    template: (results: any) => formatList(results)
   }},
   { path: '/anime/trending/:interval', method: 'get', authorization: 'none', requestPath: { helper: 'simklTrendingPath', args: ["'anime'", 'args.interval'] }, responseFormat: {
     type: 'simple',
-    template: (results: any) => results.slice(0, 20).map((r: any, i: number) => `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} (${r.year || 'N/A'})`)
+    template: (results: any) => formatList(results)
   }},
 
   { path: '/tv/:id', method: 'get', authorization: 'none', responseFormat: { type: 'json' }},
@@ -72,42 +72,34 @@ export const toolsWhitelist: ToolConfig[] = [
 
   { path: '/tv/best/:filter', method: 'get', responseFormat: {
     type: 'simple',
-    template: (results: any) => results.slice(0, 20).map((r: any, i: number) =>
-      `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} (${r.year || 'N/A'}) - rating: ${r.ratings?.simkl?.rating || 'N/A'}`
-    )
+    template: (results: any) => formatList(results, withRating)
   }},
   { path: '/anime/best/:filter', method: 'get', responseFormat: {
     type: 'simple',
-    template: (results: any) => results.slice(0, 20).map((r: any, i: number) =>
-      `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} (${r.year || 'N/A'}) - rating: ${r.ratings?.simkl?.rating || 'N/A'}`
-    )
+    template: (results: any) => formatList(results, withRating)
   }},
 
   { path: '/tv/airing?:date', method: 'get', responseFormat: {
     type: 'simple',
-    template: (results: any) => results.slice(0, 20).map((r: any, i: number) =>
-      `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} - ep ${r.episode?.episode || '?'} at ${r.date || 'TBA'}`
-    )
+    template: (results: any) => formatList(results, asAiring)
   }},
   { path: '/anime/airing?:date', method: 'get', responseFormat: {
     type: 'simple',
-    template: (results: any) => results.slice(0, 20).map((r: any, i: number) =>
-      `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} - ep ${r.episode?.episode || '?'} at ${r.date || 'TBA'}`
-    )
+    template: (results: any) => formatList(results, asAiring)
   }},
 
   // genre filtering
   { path: '/tv/genres/:genre/:type/:country/:network/:year/:sort', method: 'get', responseFormat: {
     type: 'simple',
-    template: (results: any) => results.slice(0, 20).map((r: any, i: number) => `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} (${r.year || 'N/A'})`)
+    template: (results: any) => formatList(results)
   }},
   { path: '/anime/genres/:genre/:type/:network/:year/:sort', method: 'get', responseFormat: {
     type: 'simple',
-    template: (results: any) => results.slice(0, 20).map((r: any, i: number) => `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} (${r.year || 'N/A'})`)
+    template: (results: any) => formatList(results)
   }},
   { path: '/movies/genres/:genre/:type/:country/:year/:sort', method: 'get', responseFormat: {
     type: 'simple',
-    template: (results: any) => results.slice(0, 20).map((r: any, i: number) => `${i}: [SIMKL #${r.ids?.simkl_id || r.ids?.simkl}] - ${r.title} (${r.year || 'N/A'})`)
+    template: (results: any) => formatList(results)
   }},
 
   // user stats
