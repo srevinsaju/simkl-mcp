@@ -70,7 +70,7 @@ class MemoryKV {
 
 beforeEach(() => { Date.now = () => 1_000_000; });
 beforeAll(async () => {
-  mock.module('cloudflare:workers', () => ({ WorkerEntrypoint: class {}, DurableObject: class {}, env: {} }));
+  mock.module('cloudflare:workers', () => ({ WorkerEntrypoint: class {}, DurableObject: class {}, RpcTarget: class {}, WorkflowEntrypoint: class {}, WorkflowEvent: class {}, env: {}, exports: {} }));
   mock.module('cloudflare:email', () => ({ EmailMessage: class {} }));
   ({ OAuthProvider } = await import('@cloudflare/workers-oauth-provider'));
   ({ createSimklTokenExchangeCallback, createOAuthProvider } = await import('../src/index.js'));
@@ -120,6 +120,16 @@ describe('Simkl provider token exchange callback', () => {
     });
   });
 
+  it('passes through grants stored before AUTH V2, which have no refresh token or expiry', async () => {
+    globalThis.fetch = mock(() => { throw new Error('unexpected fetch'); }) as typeof fetch;
+    const legacy = { simklToken: 'legacy-access', simklUserId: 'simkl_user_42' };
+    const result = await createSimklTokenExchangeCallback(env('client', 'secret'))({
+      grantType: 'refresh_token', clientId: 'local-client', userId: 'simkl-user', scope: [], props: legacy,
+    });
+    expect(result.newProps).toEqual(legacy);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it('coalesces simultaneous refreshes from separate request callbacks and preserves the old refresh token', async () => {
     let resolveResponse!: (response: Response) => void;
     let authorization: string | null = null;
@@ -132,15 +142,15 @@ describe('Simkl provider token exchange callback', () => {
       resolveTokenRequestStarted();
       return new Promise<Response>(resolve => { resolveResponse = resolve; });
     }) as typeof fetch);
-    const callbackA = createSimklTokenExchangeCallback(env('request-a', 'secret-a'));
-    const callbackB = createSimklTokenExchangeCallback(env('request-b', 'secret-b'));
+    const callbackA = createSimklTokenExchangeCallback(env('requesta', 'secreta'));
+    const callbackB = createSimklTokenExchangeCallback(env('requestb', 'secretb'));
     const options = { grantType: 'refresh_token' as const, clientId: 'local-client', userId: 'simkl-user', scope: [], props: props(Date.now()) };
     const first = callbackA(options);
     const second = callbackB(options);
     await tokenRequestStarted;
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
     expect(tokenRequests).toBe(1);
-    expect(atob(authorization!.slice('Basic '.length))).toBe('request-a:secret-a');
+    expect(atob(authorization!.slice('Basic '.length))).toBe('requesta:secreta');
     resolveResponse(tokenResponse('access-new'));
     const [a, b] = await Promise.all([first, second]);
     expect(a.newProps).toEqual(b.newProps);
@@ -167,14 +177,14 @@ describe('Simkl provider token exchange callback', () => {
       return Promise.resolve(tokenResponse('access-new', 'refresh-new'));
     }) as typeof fetch);
     const opts = { grantType: 'refresh_token' as const, clientId: 'local-client', userId: 'simkl-user', scope: [], props: props(Date.now()) };
-    const firstRequestCallback = createSimklTokenExchangeCallback(env('first-client', 'first-secret'));
-    const secondRequestCallback = createSimklTokenExchangeCallback(env('second-client', 'second-secret'));
+    const firstRequestCallback = createSimklTokenExchangeCallback(env('firstclient', 'firstsecret'));
+    const secondRequestCallback = createSimklTokenExchangeCallback(env('secondclient', 'secondsecret'));
     await firstRequestCallback(opts);
     const firstAuthorization = authorization;
-    expect(atob(firstAuthorization!.slice('Basic '.length))).toBe('first-client:first-secret');
+    expect(atob(firstAuthorization!.slice('Basic '.length))).toBe('firstclient:firstsecret');
     await secondRequestCallback(opts);
     expect(authorization).not.toBe(firstAuthorization);
-    expect(atob(authorization!.slice('Basic '.length))).toBe('second-client:second-secret');
+    expect(atob(authorization!.slice('Basic '.length))).toBe('secondclient:secondsecret');
   });
 
   it('routes a request through the provider created for its Worker env', async () => {

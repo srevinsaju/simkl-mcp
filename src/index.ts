@@ -43,6 +43,12 @@ export function createSimklTokenExchangeCallback(env: SimklOAuthEnv) {
       return { newProps: currentProps, accessTokenTTL: secondsUntilExpiry(currentProps.simklExpiresAt) };
     }
 
+    // Grants stored before AUTH V2 hold a non-expiring token with no refresh
+    // token or expiry. Keep serving them until the user re-authorizes.
+    if (currentProps && !currentProps.simklRefreshToken && currentProps.simklExpiresAt === undefined) {
+      return { newProps: currentProps };
+    }
+
     if (typeof currentProps?.simklRefreshToken !== 'string' || !currentProps.simklRefreshToken) {
       throw new Error('Unable to refresh Simkl token');
     }
