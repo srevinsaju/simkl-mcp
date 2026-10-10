@@ -1,3 +1,4 @@
+import { generateRandomState } from 'oauth4webapi';
 import {
   createPkcePair,
   exchangeAuthorizationCode,
@@ -16,7 +17,25 @@ interface Env extends WorkerEnv, SimklOAuthEnv {
 interface PendingOAuthState {
   oauthRequest: unknown;
   codeVerifier: string;
+  // Random value also set as a cookie on the browser that started the flow, so
+  // a callback completed from any other browser is rejected (login CSRF).
+  browserBinding: string;
   createdAt: number;
+}
+
+const BINDING_COOKIE = '__Host-simkl_oauth';
+const STATE_TTL_SECONDS = 600;
+
+function bindingCookie(value: string, maxAge: number): string {
+  return `${BINDING_COOKIE}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function readBindingCookie(request: Request): string | undefined {
+  for (const part of (request.headers.get('Cookie') ?? '').split(';')) {
+    const [name, ...value] = part.trim().split('=');
+    if (name === BINDING_COOKIE) return value.join('=');
+  }
+  return undefined;
 }
 
 const SIMKL_ISSUER = 'https://simkl.com';
@@ -35,6 +54,8 @@ function isPendingOAuthState(value: unknown): value is PendingOAuthState {
   return typeof pending.codeVerifier === 'string'
     && pending.codeVerifier.length >= 43
     && pending.codeVerifier.length <= 128
+    && typeof pending.browserBinding === 'string'
+    && pending.browserBinding.length > 0
     && typeof pending.createdAt === 'number'
     && 'oauthRequest' in pending;
 }
@@ -67,8 +88,9 @@ export default {
         const oauthRequest = await env.OAUTH_PROVIDER.parseAuthRequest(request);
         const state = crypto.randomUUID();
         const { codeVerifier, codeChallenge } = await createPkcePair();
-        const pending: PendingOAuthState = { oauthRequest, codeVerifier, createdAt: Date.now() };
-        await env.OAUTH_KV.put(`oauth_state:${state}`, JSON.stringify(pending), { expirationTtl: 600 });
+        const browserBinding = generateRandomState();
+        const pending: PendingOAuthState = { oauthRequest, codeVerifier, browserBinding, createdAt: Date.now() };
+        await env.OAUTH_KV.put(`oauth_state:${state}`, JSON.stringify(pending), { expirationTtl: STATE_TTL_SECONDS });
         const authorizationUrl = new URL(SIMKL_AUTHORIZATION_ENDPOINT);
         authorizationUrl.searchParams.set('response_type', 'code');
         authorizationUrl.searchParams.set('client_id', env.SIMKL_CLIENT_ID);
@@ -77,7 +99,13 @@ export default {
         authorizationUrl.searchParams.set('scope', SIMKL_SCOPE);
         authorizationUrl.searchParams.set('code_challenge', codeChallenge);
         authorizationUrl.searchParams.set('code_challenge_method', 'S256');
-        return Response.redirect(authorizationUrl.toString(), 302);
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: authorizationUrl.toString(),
+            'Set-Cookie': bindingCookie(browserBinding, STATE_TTL_SECONDS),
+          },
+        });
       } catch {
         return new Response('Unable to start authorization', { status: 500 });
       }
@@ -108,6 +136,9 @@ export default {
       // Simkl consumes authorization codes when an exchange is attempted. Delete
       // state first so a failed exchange cannot make a replay retry that code.
       await env.OAUTH_KV.delete(key);
+      if (readBindingCookie(request) !== pending.browserBinding) {
+        return new Response('Invalid authorization response', { status: 400 });
+      }
       try {
         const tokenSet = await exchangeAuthorizationCode({
           callbackUrl: url,
@@ -128,7 +159,10 @@ export default {
         const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
           request: pending.oauthRequest, userId, scope: grantedScopes, props,
         });
-        return Response.redirect(redirectTo, 302);
+        return new Response(null, {
+          status: 302,
+          headers: { Location: redirectTo, 'Set-Cookie': bindingCookie('', 0) },
+        });
       } catch {
         return new Response('Authorization failed. Please start again.', { status: 502 });
       } finally {

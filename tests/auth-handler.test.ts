@@ -2,6 +2,9 @@ import { afterEach, describe, expect, mock, test } from 'bun:test';
 import { APP_NAME, APP_VERSION, USER_AGENT } from '../src/app-info';
 import handler from '../src/auth-handler';
 
+const BINDING = 'browser-binding-value';
+const withCookie = { headers: { Cookie: `__Host-simkl_oauth=${BINDING}` } };
+
 const originalFetch = globalThis.fetch;
 const originalRandomUUID = crypto.randomUUID;
 afterEach(() => {
@@ -77,13 +80,35 @@ describe('AUTH V2 handler', () => {
     expect(pending.oauthRequest).toMatchObject({ clientId: 'client', scope: 'read write' });
     expect(pending.codeVerifier).toMatch(/^[A-Za-z0-9_-]{43,128}$/);
     expect(JSON.stringify(pending)).not.toContain(env.SIMKL_CLIENT_SECRET);
+
+    const cookie = response.headers.get('Set-Cookie')!;
+    expect(cookie).toContain(`__Host-simkl_oauth=${pending.browserBinding}`);
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('Secure');
+    expect(cookie).toContain('SameSite=Lax');
+  });
+
+  test.each([
+    ['no cookie', undefined],
+    ['a different browser\'s cookie', '__Host-simkl_oauth=someone-else'],
+  ])('rejects a callback with %s without an exchange and burns the state', async (_label, cookie) => {
+    const { env, values } = setup();
+    values.set('oauth_state:s', JSON.stringify({ oauthRequest: {}, codeVerifier: 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG', browserBinding: BINDING, createdAt: Date.now() }));
+    globalThis.fetch = mock(async () => { throw new Error('should not fetch'); }) as typeof fetch;
+    const response = await handler.fetch(
+      new Request('https://service.example/oauth/callback?code=c&state=s&iss=https%3A%2F%2Fsimkl.com', cookie ? { headers: { Cookie: cookie } } : undefined),
+      env,
+    );
+    expect(response.status).toBe(400);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(values.has('oauth_state:s')).toBe(false);
   });
 
   test('exchanges callback once, completes with Simkl props and deletes pending state', async () => {
     const { env, values, deletes, completeAuthorization } = setup();
-    values.set('oauth_state:s', JSON.stringify({ oauthRequest: { clientId: 'c', scope: 'read write' }, codeVerifier: 'stored-verifier-abcdefghijklmnopqrstuvwxyz0123456789', createdAt: Date.now() }));
+    values.set('oauth_state:s', JSON.stringify({ oauthRequest: { clientId: 'c', scope: 'read write' }, codeVerifier: 'stored-verifier-abcdefghijklmnopqrstuvwxyz0123456789', browserBinding: BINDING, createdAt: Date.now() }));
     successfulFetch();
-    const response = await handler.fetch(new Request('https://service.example/oauth/callback?code=single-use&state=s&iss=https%3A%2F%2Fsimkl.com'), env);
+    const response = await handler.fetch(new Request('https://service.example/oauth/callback?code=single-use&state=s&iss=https%3A%2F%2Fsimkl.com', withCookie), env);
     expect(response.status).toBe(302);
     expect(response.headers.get('Location')).toBe('https://client.example/done');
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
@@ -105,9 +130,9 @@ describe('AUTH V2 handler', () => {
     ['Simkl error', '?error=access_denied&state=s&iss=https%3A%2F%2Fsimkl.com'],
   ])('rejects %s without an exchange', async (_label, query) => {
     const { env, values } = setup();
-    values.set('oauth_state:s', JSON.stringify({ oauthRequest: {}, codeVerifier: 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG', createdAt: Date.now() }));
+    values.set('oauth_state:s', JSON.stringify({ oauthRequest: {}, codeVerifier: 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG', browserBinding: BINDING, createdAt: Date.now() }));
     globalThis.fetch = mock(async () => { throw new Error('should not fetch'); }) as typeof fetch;
-    const response = await handler.fetch(new Request(`https://service.example/oauth/callback${query}`), env);
+    const response = await handler.fetch(new Request(`https://service.example/oauth/callback${query}`, withCookie), env);
     expect(response.status).toBe(400);
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
@@ -115,20 +140,20 @@ describe('AUTH V2 handler', () => {
   test('rejects missing, expired and malformed pending state without exchanging', async () => {
     const { env, values } = setup();
     globalThis.fetch = mock(async () => { throw new Error('should not fetch'); }) as typeof fetch;
-    const missing = await handler.fetch(new Request('https://service.example/oauth/callback?code=c&state=missing&iss=https%3A%2F%2Fsimkl.com'), env);
+    const missing = await handler.fetch(new Request('https://service.example/oauth/callback?code=c&state=missing&iss=https%3A%2F%2Fsimkl.com', withCookie), env);
     expect(missing.status).toBe(400);
     values.set('oauth_state:bad-json', '{');
-    const malformed = await handler.fetch(new Request('https://service.example/oauth/callback?code=c&state=bad-json&iss=https%3A%2F%2Fsimkl.com'), env);
+    const malformed = await handler.fetch(new Request('https://service.example/oauth/callback?code=c&state=bad-json&iss=https%3A%2F%2Fsimkl.com', withCookie), env);
     expect(malformed.status).toBe(400);
     values.set('oauth_state:bad-shape', JSON.stringify({}));
-    const badShape = await handler.fetch(new Request('https://service.example/oauth/callback?code=c&state=bad-shape&iss=https%3A%2F%2Fsimkl.com'), env);
+    const badShape = await handler.fetch(new Request('https://service.example/oauth/callback?code=c&state=bad-shape&iss=https%3A%2F%2Fsimkl.com', withCookie), env);
     expect(badShape.status).toBe(400);
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   test('consumes state before one failed exchange and does not retry a replayed code', async () => {
     const { env, values, deletes } = setup();
-    values.set('oauth_state:s', JSON.stringify({ oauthRequest: {}, codeVerifier: 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG', createdAt: Date.now() }));
+    values.set('oauth_state:s', JSON.stringify({ oauthRequest: {}, codeVerifier: 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG', browserBinding: BINDING, createdAt: Date.now() }));
     let statePresentAtExchange = true;
     globalThis.fetch = mock(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
@@ -140,8 +165,8 @@ describe('AUTH V2 handler', () => {
       throw new Error('settings should not be called');
     }) as typeof fetch;
     const callback = 'https://service.example/oauth/callback?code=single-use&state=s&iss=https%3A%2F%2Fsimkl.com';
-    const first = await handler.fetch(new Request(callback), env);
-    const replay = await handler.fetch(new Request(callback), env);
+    const first = await handler.fetch(new Request(callback, withCookie), env);
+    const replay = await handler.fetch(new Request(callback, withCookie), env);
     expect(first.status).toBe(502);
     expect(await first.text()).not.toContain('sensitive');
     expect(replay.status).toBe(400);
@@ -152,9 +177,9 @@ describe('AUTH V2 handler', () => {
 
   test('uses GET and current identification headers for user settings', async () => {
     const { env, values } = setup();
-    values.set('oauth_state:s', JSON.stringify({ oauthRequest: {}, codeVerifier: 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG', createdAt: Date.now() }));
+    values.set('oauth_state:s', JSON.stringify({ oauthRequest: {}, codeVerifier: 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG', browserBinding: BINDING, createdAt: Date.now() }));
     successfulFetch();
-    await handler.fetch(new Request('https://service.example/oauth/callback?code=c&state=s&iss=https%3A%2F%2Fsimkl.com'), env);
+    await handler.fetch(new Request('https://service.example/oauth/callback?code=c&state=s&iss=https%3A%2F%2Fsimkl.com', withCookie), env);
     const settingsCall = (globalThis.fetch as ReturnType<typeof mock>).mock.calls[2];
     const settingsUrl = new URL(String(settingsCall[0]));
     expect(settingsUrl.origin + settingsUrl.pathname).toBe('https://api.simkl.com/users/settings');
