@@ -1,15 +1,12 @@
+import { APP_NAME, APP_VERSION } from './app-info';
+import type { SimklOAuthEnv } from './auth/simkl-oauth';
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import { z } from 'zod';
 import { SimklClient } from './api/client.js';
 import { registerTools } from '../generated/tools.js';
 
-interface Env {
-  SIMKL_CLIENT_ID: string;
-  SIMKL_CLIENT_SECRET: string;
-  OAUTH_REDIRECT_URI: string;
-  SIMKL_API_BASE_URL: string;
-}
+interface Env extends WorkerEnv, SimklOAuthEnv {}
 
 interface SimklAuthProps extends Record<string, unknown> {
   simklToken: string;
@@ -18,8 +15,8 @@ interface SimklAuthProps extends Record<string, unknown> {
 
 export class SimklMCP extends McpAgent<Env, unknown, SimklAuthProps> {
   server = new McpServer({
-    name: 'simkl-mcp-server',
-    version: '1.0.0',
+    name: `${APP_NAME}-server`,
+    version: APP_VERSION,
   });
 
   private client!: SimklClient;
