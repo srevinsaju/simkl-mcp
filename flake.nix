@@ -14,11 +14,19 @@
             bun
             # wrangler runs on node
             nodejs_22
-          ];
+            # the Rust rewrite in crates/
+            cargo
+            clippy
+            rustc
+            rustfmt
+            rust-analyzer
+            gh
+          ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.libiconv ];
 
           WRANGLER_SEND_TELEMETRY = "false";
+          RUST_LOG = "simkl_mcp=debug,simkl_api=debug,tower_http=info";
           shellHook = ''
-            echo "simkl-mcp dev shell: bun $(bun --version), node $(node --version)"
+            echo "simkl-mcp dev shell: bun $(bun --version), node $(node --version), rust $(rustc --version | cut -d' ' -f2)"
           '';
         };
       });
