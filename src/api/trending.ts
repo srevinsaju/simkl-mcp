@@ -1,12 +1,8 @@
 export type SimklMediaType = 'tv' | 'movies' | 'anime';
-export type SimklTrendingInterval = 'daily' | 'weekly' | 'monthly';
-
-const timeframeByInterval: Record<SimklTrendingInterval, string> = {
-  daily: 'today',
-  weekly: 'week',
-  monthly: 'month',
-};
+// Same vocabulary as the `interval` parameter in the Simkl API spec, which is
+// also the name of the file on the public trending host.
+export type SimklTrendingInterval = 'today' | 'week' | 'month';
 
 export function simklTrendingPath(type: SimklMediaType, interval: SimklTrendingInterval): string {
-  return `https://data.simkl.in/discover/trending/${type}/${timeframeByInterval[interval]}_100.json`;
+  return `https://data.simkl.in/discover/trending/${type}/${interval}_100.json`;
 }

@@ -36,10 +36,12 @@ export interface PaginatedResult<T> {
 
 export class SimklClient {
   private baseUrl: string;
+  private baseOrigin: string;
   private clientId: string;
 
   constructor(options: SimklClientOptions) {
     this.baseUrl = options.baseUrl;
+    this.baseOrigin = new URL(options.baseUrl).origin;
     this.clientId = options.clientId;
   }
 
@@ -100,6 +102,11 @@ export class SimklClient {
 
   private async doRequest<T = unknown>(endpoint: string, options: RequestOptions): Promise<PaginatedResult<T>> {
     const url = this.buildUrl(endpoint, options.query);
+    // Absolute endpoints are allowed for public hosts, but the user's token must
+    // never be sent anywhere except the configured API origin.
+    if (options.token && options.authorization !== 'none' && new URL(url).origin !== this.baseOrigin) {
+      throw new SimklApiError('simkl api error: refusing to send token to a different origin', 0, null);
+    }
     const headers = this.buildHeaders(options.token, options.authorization);
 
     const init: RequestInit = {

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { APP_NAME, APP_VERSION, USER_AGENT } from '../src/app-info';
 import { SimklClient } from '../src/api/client';
 import { toolsWhitelist } from '../src/tools-config';
 
@@ -27,9 +28,9 @@ describe('SimklClient request policy', () => {
     expect(url.origin).toBe('https://api.simkl.com');
     expect(url.pathname).toBe('/movies/trending/today');
     expect(url.searchParams.get('client_id')).toBe('app-id');
-    expect(url.searchParams.get('app-name')).toBe('simkl-mcp');
-    expect(url.searchParams.get('app-version')).toBe('1.0.0');
-    expect(new Headers(init.headers).get('User-Agent')).toBe('simkl-mcp/1.0.0');
+    expect(url.searchParams.get('app-name')).toBe(APP_NAME);
+    expect(url.searchParams.get('app-version')).toBe(APP_VERSION);
+    expect(new Headers(init.headers).get('User-Agent')).toBe(USER_AGENT);
   });
 
   test('adds identification to absolute HTTPS endpoints and preserves their query', async () => {
@@ -44,9 +45,9 @@ describe('SimklClient request policy', () => {
     expect(url.searchParams.get('existing')).toBe('yes');
     expect(url.searchParams.get('period')).toBe('daily');
     expect(url.searchParams.get('client_id')).toBe('app-id');
-    expect(url.searchParams.get('app-name')).toBe('simkl-mcp');
-    expect(url.searchParams.get('app-version')).toBe('1.0.0');
-    expect(new Headers(requests[0].init.headers).get('User-Agent')).toBe('simkl-mcp/1.0.0');
+    expect(url.searchParams.get('app-name')).toBe(APP_NAME);
+    expect(url.searchParams.get('app-version')).toBe(APP_VERSION);
+    expect(new Headers(requests[0].init.headers).get('User-Agent')).toBe(USER_AGENT);
   });
 
   test('uses bearer authorization by default when a token is provided', async () => {
@@ -58,6 +59,21 @@ describe('SimklClient request policy', () => {
   test('omits authorization when explicitly configured as none', async () => {
     const client = new SimklClient({ baseUrl: 'https://api.simkl.com', clientId: 'app-id' });
     await client.request('/movies/42', { method: 'GET', token: 'user-token', authorization: 'none' });
+    expect(new Headers(requests[0].init.headers).has('Authorization')).toBe(false);
+  });
+
+  test('refuses to send a token to a different origin', async () => {
+    const client = new SimklClient({ baseUrl: 'https://api.simkl.com', clientId: 'app-id' });
+    await expect(
+      client.request('https://data.simkl.in/discover/trending/tv/today_100.json', { method: 'GET', token: 'user-token' })
+    ).rejects.toThrow(/different origin/);
+    expect(requests).toHaveLength(0);
+  });
+
+  test('allows a different origin when no token is sent', async () => {
+    const client = new SimklClient({ baseUrl: 'https://api.simkl.com', clientId: 'app-id' });
+    await client.request('https://data.simkl.in/discover/trending/tv/today_100.json', { method: 'GET', token: 'user-token', authorization: 'none' });
+    expect(requests).toHaveLength(1);
     expect(new Headers(requests[0].init.headers).has('Authorization')).toBe(false);
   });
 });

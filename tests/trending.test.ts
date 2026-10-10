@@ -1,18 +1,27 @@
 import { describe, expect, test } from 'bun:test';
-import { simklTrendingPath } from '../src/api/trending';
+import { registerTools } from '../generated/tools';
 
-describe('simklTrendingPath', () => {
-  test.each([
-    ['tv', 'daily', 'tv/today_100.json'],
-    ['movies', 'daily', 'movies/today_100.json'],
-    ['anime', 'daily', 'anime/today_100.json'],
-    ['tv', 'weekly', 'tv/week_100.json'],
-    ['movies', 'weekly', 'movies/week_100.json'],
-    ['anime', 'weekly', 'anime/week_100.json'],
-    ['tv', 'monthly', 'tv/month_100.json'],
-    ['movies', 'monthly', 'movies/month_100.json'],
-    ['anime', 'monthly', 'anime/month_100.json'],
-  ] as const)('%s %s maps to the official public file', (type, interval, expectedPath) => {
-    expect(simklTrendingPath(type, interval)).toBe(`https://data.simkl.in/discover/trending/${expectedPath}`);
-  });
+// Goes through the generated tool handlers, because the interval values a tool
+// accepts come from the Simkl spec and must be ones the URL helper understands.
+describe('trending tools', () => {
+  const tools = [
+    ['simkl_get_trending_shows', 'tv'],
+    ['simkl_get_trending_movies', 'movies'],
+    ['simkl_get_trending_anime', 'anime'],
+  ] as const;
+
+  test.each(tools.flatMap(([name, type]) => ['today', 'week', 'month'].map(interval => [name, type, interval] as const)))(
+    '%s requests the %s %s file',
+    async (name, type, interval) => {
+      const handlers: Record<string, (args: unknown) => Promise<unknown>> = {};
+      const server = { registerTool: (toolName: string, _config: unknown, handler: (args: unknown) => Promise<unknown>) => { handlers[toolName] = handler; } };
+      const requested: string[] = [];
+      const client = { request: async (endpoint: string) => { requested.push(endpoint); return []; } };
+
+      registerTools(server as never, client, () => 'token');
+      await handlers[name]({ interval });
+
+      expect(requested).toEqual([`https://data.simkl.in/discover/trending/${type}/${interval}_100.json`]);
+    },
+  );
 });
