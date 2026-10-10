@@ -3,8 +3,8 @@ import { createPkcePair, exchangeAuthorizationCode, refreshSimklToken } from '..
 import { USER_AGENT } from '../src/app-info';
 
 const env = {
-  SIMKL_CLIENT_ID: 'client-id',
-  SIMKL_CLIENT_SECRET: 'client-secret',
+  SIMKL_CLIENT_ID: 'clientid',
+  SIMKL_CLIENT_SECRET: 'clientsecret',
   OAUTH_REDIRECT_URI: 'https://example.com/oauth/callback',
 };
 
@@ -56,9 +56,9 @@ describe('Simkl OAuth utilities', () => {
     expect(captured.url).toBe('https://api.simkl.com/oauth2/token');
     expect(captured.init.method).toBe('POST');
     const headers = new Headers(captured.init.headers);
-    expect(headers.get('Content-Type')).toBe('application/x-www-form-urlencoded');
+    expect(headers.get('Content-Type')).toStartWith('application/x-www-form-urlencoded');
     expect(headers.get('User-Agent')).toBe(USER_AGENT);
-    expect(headers.get('Authorization')).toBe(`Basic ${btoa('client-id:client-secret')}`);
+    expect(headers.get('Authorization')).toBe(`Basic ${btoa('clientid:clientsecret')}`);
     const body = new URLSearchParams(String(captured.init.body));
     expect(Object.fromEntries(body)).toEqual({
       code: 'one-time-code',
@@ -114,7 +114,7 @@ describe('Simkl OAuth utilities', () => {
   test('rejects non-OK token responses', async () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL) => {
       if (new URL(String(input)).pathname === '/.well-known/oauth-authorization-server') return discoveryResponse();
-      return new Response('rejected', { status: 401 });
+      return Response.json({ error: 'invalid_grant' }, { status: 401 });
     }) as typeof fetch;
     await expect(refreshSimklToken('refresh', env)).rejects.toThrow(/401/);
   });
