@@ -18,7 +18,6 @@
 //! This module is private: only this crate declares endpoints.
 
 use std::hash::{BuildHasher, RandomState};
-use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -32,8 +31,8 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-use url::Url;
 
+use crate::config::{Config, Limits};
 use crate::error::{Error, Result};
 
 /// A user's Simkl access token. Never printed, and wiped on drop.
@@ -109,79 +108,6 @@ enum Limit {
     Write,
 }
 
-/// Who is calling Simkl. Every request carries these.
-#[derive(Debug, Clone)]
-pub struct Config {
-    pub client_id: String,
-    pub app_name: String,
-    pub app_version: String,
-    pub api_url: Url,
-    pub data_url: Url,
-    pub limits: Limits,
-    pub retries: Retries,
-}
-
-impl Config {
-    pub fn new(
-        client_id: impl Into<String>,
-        app_name: impl Into<String>,
-        app_version: impl Into<String>,
-    ) -> Self {
-        Self {
-            client_id: client_id.into(),
-            app_name: app_name.into(),
-            app_version: app_version.into(),
-            api_url: Url::parse("https://api.simkl.com").unwrap(),
-            data_url: Url::parse("https://data.simkl.in").unwrap(),
-            limits: Limits::default(),
-            retries: Retries::default(),
-        }
-    }
-
-    fn user_agent(&self) -> String {
-        format!("{}/{}", self.app_name, self.app_version)
-    }
-}
-
-/// Requests per second allowed for each user token.
-#[derive(Debug, Clone, Copy)]
-pub struct Limits {
-    pub reads_per_second: NonZeroU32,
-    pub writes_per_second: NonZeroU32,
-}
-
-impl Default for Limits {
-    /// Simkl's documented caps: 10 GET/s and 1 POST/s
-    /// ([rate limits](https://api.simkl.org/resources/rate-limits)).
-    fn default() -> Self {
-        Self {
-            reads_per_second: NonZeroU32::new(10).unwrap(),
-            writes_per_second: NonZeroU32::new(1).unwrap(),
-        }
-    }
-}
-
-/// How often and how long to wait before retrying. Simkl asks clients not to
-/// back off exponentially for either.
-#[derive(Debug, Clone, Copy)]
-pub struct Retries {
-    pub attempts: usize,
-    /// After a per-second rate limit (`429 rate_limit`).
-    pub burst_delay: Duration,
-    /// After the per-user write lock (`400 rate_limit`).
-    pub write_lock_delay: Duration,
-}
-
-impl Default for Retries {
-    fn default() -> Self {
-        Self {
-            attempts: 3,
-            burst_delay: Duration::from_millis(1100),
-            write_lock_delay: Duration::from_secs(3),
-        }
-    }
-}
-
 /// Client for Simkl's public data. Cheap to clone.
 #[derive(Clone)]
 pub struct Client {
@@ -203,12 +129,8 @@ struct UserLimits {
     reads: DefaultKeyedRateLimiter<u64>,
     writes: DefaultKeyedRateLimiter<u64>,
     write_locks: Cache<u64, Arc<Mutex<()>>>,
+    prune_at_users: usize,
 }
-
-/// Forget limiter state for users idle this long.
-const IDLE_USER_TTL: Duration = Duration::from_secs(10 * 60);
-/// Prune limiter state once it tracks this many users.
-const LIMITER_PRUNE_AT: usize = 10_000;
 
 impl UserLimits {
     fn new(limits: Limits) -> Self {
@@ -216,7 +138,8 @@ impl UserLimits {
             hasher: RandomState::new(),
             reads: RateLimiter::keyed(Quota::per_second(limits.reads_per_second)),
             writes: RateLimiter::keyed(Quota::per_second(limits.writes_per_second)),
-            write_locks: Cache::builder().time_to_idle(IDLE_USER_TTL).build(),
+            write_locks: Cache::builder().time_to_idle(limits.idle_user_ttl).build(),
+            prune_at_users: limits.prune_at_users,
         }
     }
 
@@ -229,7 +152,7 @@ impl UserLimits {
             Limit::Read => &self.reads,
             Limit::Write => &self.writes,
         };
-        if limiter.len() > LIMITER_PRUNE_AT {
+        if limiter.len() > self.prune_at_users {
             limiter.retain_recent();
         }
         limiter.until_key_ready(&key).await;
@@ -238,7 +161,8 @@ impl UserLimits {
 
 impl Client {
     pub fn new(config: Config) -> Result<Self> {
-        let builder = || reqwest::Client::builder().user_agent(config.user_agent());
+        let user_agent = format!("{}/{}", config.app_name, config.app_version);
+        let builder = || reqwest::Client::builder().user_agent(&user_agent);
         let http = builder().build()?;
         let no_redirect = builder()
             .redirect(reqwest::redirect::Policy::none())

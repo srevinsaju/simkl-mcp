@@ -17,11 +17,13 @@ mod macros;
 
 pub mod account;
 mod client;
+mod config;
 pub mod data;
 mod error;
 pub mod library;
 pub mod media;
 mod sync;
 
-pub use client::{AccessToken, Client, Config, Limits, Retries, UserClient};
+pub use client::{AccessToken, Client, UserClient};
+pub use config::{Config, Limits, Retries};
 pub use error::{Error, Result};
