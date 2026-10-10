@@ -1,5 +1,7 @@
 // simkl api http client
 
+import { APP_NAME, APP_VERSION, USER_AGENT } from '../app-info';
+
 export interface SimklClientOptions {
   baseUrl: string;
   clientId: string;
@@ -162,8 +164,8 @@ export class SimklClient {
     }
 
     url.searchParams.set('client_id', this.clientId);
-    url.searchParams.set('app-name', 'simkl-mcp');
-    url.searchParams.set('app-version', '1.0.0');
+    url.searchParams.set('app-name', APP_NAME);
+    url.searchParams.set('app-version', APP_VERSION);
 
     if (query) {
       Object.entries(query).forEach(([key, value]) => {
@@ -178,7 +180,7 @@ export class SimklClient {
   private buildHeaders(token?: string, authorization: RequestOptions['authorization'] = 'bearer'): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'User-Agent': 'simkl-mcp/1.0.0',
+      'User-Agent': USER_AGENT,
     };
 
     if (authorization === 'bearer' && token) {

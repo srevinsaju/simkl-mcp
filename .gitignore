@@ -7,6 +7,7 @@ dist/
 *.js.map
 *.d.ts
 *.d.ts.map
+!worker-configuration.d.ts
 
 # generated code
 generated/
