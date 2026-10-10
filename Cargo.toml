@@ -13,6 +13,7 @@ simkl-api = { path = "crates/simkl-api" }
 
 anyhow = "1"
 axum = "0.8"
+backon = { version = "1", default-features = false, features = ["std", "tokio-sleep"] }
 bon = "3"
 clap = { version = "4", features = ["derive", "env"] }
 derive_more = { version = "2", features = ["as_ref", "display", "from", "into"] }
