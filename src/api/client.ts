@@ -10,6 +10,7 @@ export interface SimklClientOptions {
 export interface RequestOptions {
   method: 'GET' | 'POST' | 'DELETE';
   token?: string;
+  authorization?: 'bearer' | 'none';
   body?: unknown;
   query?: Record<string, string | number | undefined>;
 }
@@ -35,10 +36,12 @@ export interface PaginatedResult<T> {
 
 export class SimklClient {
   private baseUrl: string;
+  private baseOrigin: string;
   private clientId: string;
 
   constructor(options: SimklClientOptions) {
     this.baseUrl = options.baseUrl;
+    this.baseOrigin = new URL(options.baseUrl).origin;
     this.clientId = options.clientId;
   }
 
@@ -99,7 +102,12 @@ export class SimklClient {
 
   private async doRequest<T = unknown>(endpoint: string, options: RequestOptions): Promise<PaginatedResult<T>> {
     const url = this.buildUrl(endpoint, options.query);
-    const headers = this.buildHeaders(options.token);
+    // Absolute endpoints are allowed for public hosts, but the user's token must
+    // never be sent anywhere except the configured API origin.
+    if (options.token && options.authorization !== 'none' && new URL(url).origin !== this.baseOrigin) {
+      throw new SimklApiError('simkl api error: refusing to send token to a different origin', 0, null);
+    }
+    const headers = this.buildHeaders(options.token, options.authorization);
 
     const init: RequestInit = {
       method: options.method,
@@ -153,8 +161,14 @@ export class SimklClient {
   }
 
   private buildUrl(endpoint: string, query?: Record<string, string | number | undefined>): string {
-    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    const url = new URL(path, this.baseUrl);
+    const isAbsolute = /^[a-z][a-z\d+.-]*:\/\//i.test(endpoint);
+    const url = isAbsolute
+      ? new URL(endpoint)
+      : new URL(endpoint.startsWith('/') ? endpoint : `/${endpoint}`, this.baseUrl);
+
+    if (isAbsolute && url.protocol !== 'https:') {
+      throw new SimklApiError('simkl api error: absolute endpoint must use HTTPS', 0, null);
+    }
 
     url.searchParams.set('client_id', this.clientId);
     url.searchParams.set('app-name', APP_NAME);
@@ -170,13 +184,13 @@ export class SimklClient {
     return url.toString();
   }
 
-  private buildHeaders(token?: string): Record<string, string> {
+  private buildHeaders(token?: string, authorization: RequestOptions['authorization'] = 'bearer'): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'User-Agent': USER_AGENT,
     };
 
-    if (token) {
+    if (authorization === 'bearer' && token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
