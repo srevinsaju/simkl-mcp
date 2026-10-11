@@ -12,6 +12,8 @@ simkl-api = { workspace = true }
 anyhow = { workspace = true }
 axum = { workspace = true }
 clap = { workspace = true }
+garde = { workspace = true }
+jiff = { workspace = true }
 moka = { workspace = true }
 oauth-as = { workspace = true }
 oauth2 = { workspace = true }
@@ -29,6 +31,7 @@ tracing-subscriber = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
+rstest = { workspace = true }
 oauth-as = { workspace = true, features = ["test-util"] }
 
 [lints]
