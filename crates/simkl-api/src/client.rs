@@ -34,6 +34,8 @@ use tokio::sync::{Mutex, MutexGuard};
 
 use crate::config::{ClientConfig, Limits};
 use crate::error::{Error, Result};
+use crate::library::Library;
+use crate::sync::{Snapshot, read_library};
 
 /// A user's Simkl access token. Never printed, and wiped on drop.
 pub type AccessToken = SecretString;
@@ -80,7 +82,6 @@ access! {
     /// The user's data, read.
     Read = Rules { host: Host::Api, token: true, limit: Some(Limit::Read), follow_redirects: true };
     /// The user's data, written.
-    #[expect(dead_code, reason = "write endpoints arrive in the next PR")]
     Write = Rules { host: Host::Api, token: true, limit: Some(Limit::Write), follow_redirects: true };
     /// `/redirect`, whose answer is the `Location` it redirects to.
     Redirect = Rules { host: Host::Api, token: true, limit: None, follow_redirects: false };
@@ -149,12 +150,14 @@ impl UserLimits {
     }
 }
 
-/// One user's rate limits, and the lock that keeps their writes one at a
-/// time: a rate limit alone lets a slow write overlap the next.
+/// One user's rate limits, the lock that keeps their writes one at a time
+/// (a rate limit alone lets a slow write overlap the next), and their
+/// library snapshot.
 struct UserState {
     reads: DefaultDirectRateLimiter,
     writes: DefaultDirectRateLimiter,
     write_lock: Mutex<()>,
+    library: Mutex<Option<Snapshot>>,
 }
 
 impl UserState {
@@ -163,6 +166,7 @@ impl UserState {
             reads: RateLimiter::direct(Quota::per_second(limits.reads_per_second)),
             writes: RateLimiter::direct(Quota::per_second(limits.writes_per_second)),
             write_lock: Mutex::new(()),
+            library: Mutex::new(None),
         }
     }
 
@@ -318,6 +322,14 @@ impl UserClient {
     /// without the token.
     pub async fn call<E: Endpoint>(&self, endpoint: E) -> Result<E::Response> {
         self.client.execute(&endpoint, Some(self)).await
+    }
+
+    /// The user's whole library, as of now. Checks `/sync/activities` first,
+    /// then reuses the last snapshot, merges in what changed, or re-reads
+    /// everything.
+    pub async fn library(&self) -> Result<Arc<Library>> {
+        let state = self.client.inner.users.get(self.key).await;
+        read_library(self, &state.library).await
     }
 }
 
