@@ -6,7 +6,9 @@
 mod auth;
 mod config;
 mod http;
+#[expect(dead_code, reason = "used once `serve` mounts /mcp")]
 mod server;
+#[expect(dead_code, reason = "used once `serve` mounts /mcp")]
 mod tools;
 mod views;
 
