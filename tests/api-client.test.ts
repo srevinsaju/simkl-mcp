@@ -50,6 +50,25 @@ describe('SimklClient request policy', () => {
     expect(new Headers(requests[0].init.headers).get('User-Agent')).toBe(USER_AGENT);
   });
 
+  test('exposes Last-Modified metadata without changing plain request responses', async () => {
+    globalThis.fetch = (async () => new Response('{"title":"Example"}', {
+      headers: { 'Last-Modified': 'Tue, 13 Oct 2026 00:00:00 GMT' },
+    })) as typeof fetch;
+    const client = new SimklClient({ baseUrl: 'https://api.simkl.com', clientId: 'app-id' });
+    expect(await client.requestWithMetadata('/movies/1', { method: 'GET' })).toEqual({
+      data: { title: 'Example' }, headers: { lastModified: 'Tue, 13 Oct 2026 00:00:00 GMT' },
+    });
+    expect(await client.request('/movies/1', { method: 'GET' })).toEqual({ title: 'Example' });
+  });
+
+  test.each([undefined, 'Tue, 13 Oct 2026 00:00:00 GMT'])('keeps the paginated response shape unchanged with Last-Modified %s', async lastModified => {
+    globalThis.fetch = (async () => new Response('[]', {
+      headers: lastModified ? { 'Last-Modified': lastModified } : {},
+    })) as typeof fetch;
+    const client = new SimklClient({ baseUrl: 'https://api.simkl.com', clientId: 'app-id' });
+    expect(await client.requestPaginated('/movies/1', { method: 'GET' })).toEqual({ data: [], pagination: null });
+  });
+
   test('uses bearer authorization by default when a token is provided', async () => {
     const client = new SimklClient({ baseUrl: 'https://api.simkl.com', clientId: 'app-id' });
     await client.request('/users/settings', { method: 'GET', token: 'user-token' });

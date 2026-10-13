@@ -50,6 +50,16 @@ export class SimklClient {
     return data;
   }
 
+  async requestWithMetadata<T = unknown>(endpoint: string, options: RequestOptions): Promise<{
+    data: T; headers: { lastModified?: string };
+  }> {
+    let lastModified: string | undefined;
+    const { data } = await this.doRequest<T>(endpoint, options, headers => {
+      lastModified = headers.get('Last-Modified') ?? undefined;
+    });
+    return { data, headers: { lastModified } };
+  }
+
   async requestPaginated<T = unknown>(
     endpoint: string,
     options: RequestOptions & { pagination?: PaginationOptions }
@@ -100,7 +110,9 @@ export class SimklClient {
     };
   }
 
-  private async doRequest<T = unknown>(endpoint: string, options: RequestOptions): Promise<PaginatedResult<T>> {
+  private async doRequest<T = unknown>(
+    endpoint: string, options: RequestOptions, onHeaders?: (headers: Headers) => void,
+  ): Promise<PaginatedResult<T>> {
     const url = this.buildUrl(endpoint, options.query);
     // Absolute endpoints are allowed for public hosts, but the user's token must
     // never be sent anywhere except the configured API origin.
@@ -125,6 +137,8 @@ export class SimklClient {
       const message = error instanceof Error ? error.message : 'unknown fetch error';
       throw new SimklApiError(`simkl api request failed: ${message}`, 0, null);
     }
+
+    onHeaders?.(response.headers);
 
     if (response.status === 204) {
       return { data: {} as T, pagination: null };

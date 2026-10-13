@@ -74,3 +74,26 @@ curl http://localhost:8787/health
 
 ## License
 MIT
+
+## Trending by genre
+
+`simkl_get_trending_by_genre` returns monthly rankings from Simkl's public CDN,
+updated daily. These CDN reads need no Simkl user token and do not consume the
+Simkl API daily quota or per-second allowance. Live genre-browsing tools retain
+their existing behavior and filters.
+
+Example input: `{ "type": "anime", "genre": "action", "maxResults": 20 }`.
+Supported media types are `tv`, `movies`, and `anime`. Use an exact slug from
+`https://data.simkl.in/discover/trending/{type}/genre/index.json`; slugs differ by
+media type. The tool validates that index before reading
+`{genre}_month_500.json` from the same directory. The CDN file contains up to
+500 titles and has no upstream pagination. `maxResults` defaults to 20 and must
+be an integer from 1 to 100.
+
+The response contains `type`, `period`, `genre`, `total`, `returned`, `results`,
+and `updatedAt` (the file's Last-Modified header, or null when absent). Results
+preserve the CDN fields and include a `simkl_url` attribution link when a Simkl
+ID is available. It makes no per-title detail requests. Invalid genres, malformed
+responses, and failed reads return an MCP error rather than an empty success.
+
+Validation uses HTTP fixtures; it does not establish live CDN availability.

@@ -13,9 +13,30 @@ interface ToolConfig {
   name?: string;
   responseFormat?: ResponseFormat;
   omitParams?: string[];
+  description?: string;
+  custom?: { name: string; schema: string; imports: string[]; handler: string };
+
 }
 
 export const toolsWhitelist: ToolConfig[] = [
+  {
+    path: '/discover/trending/:type/genre/:genre', method: 'get', authorization: 'none',
+    description: 'Monthly trending by genre from Simkl public CDN, updated daily. No user token, API daily quota, or API per-second allowance. Use an exact slug from the media type genre index; defaults to 20 results, maximum 100; no pagination or per-title detail calls.',
+    custom: {
+      name: 'simkl_get_trending_by_genre',
+      schema: "z.object({ type: z.enum(['tv', 'movies', 'anime']), genre: z.string().min(1).max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), maxResults: z.number().int().min(1).max(100).optional() })",
+      imports: ["import { getTrendingByGenre } from '../src/api/trending.js';"],
+      handler: `async (args: any) => {
+        try {
+          const result = await getTrendingByGenre(client, args.type, args.genre, args.maxResults);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Genre trending request failed';
+          return { isError: true, content: [{ type: 'text', text: message }] };
+        }
+      }`,
+    },
+  },
   // search
   { path: '/search/:type', method: 'get', responseFormat: {
     type: 'simple',
