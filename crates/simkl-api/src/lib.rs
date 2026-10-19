@@ -25,5 +25,5 @@ pub mod media;
 mod sync;
 
 pub use client::{AccessToken, Client, UserClient};
-pub use config::{Config, Limits, Retries};
+pub use config::{ClientConfig, Limits, Retries};
 pub use error::{Error, Result};
