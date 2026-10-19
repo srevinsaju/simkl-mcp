@@ -1,6 +1,9 @@
 # dependencies
 node_modules/
 
+# rust
+/target
+
 # build output
 dist/
 *.js
