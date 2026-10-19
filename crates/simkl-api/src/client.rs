@@ -32,7 +32,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::config::{Config, Limits};
+use crate::config::{ClientConfig, Limits};
 use crate::error::{Error, Result};
 
 /// A user's Simkl access token. Never printed, and wiped on drop.
@@ -115,7 +115,7 @@ pub struct Client {
 }
 
 struct Inner {
-    config: Config,
+    config: ClientConfig,
     http: reqwest::Client,
     /// For `/redirect`, whose answer is the redirect itself.
     no_redirect: reqwest::Client,
@@ -160,7 +160,7 @@ impl UserLimits {
 }
 
 impl Client {
-    pub fn new(config: Config) -> Result<Self> {
+    pub fn new(config: ClientConfig) -> Result<Self> {
         let user_agent = format!("{}/{}", config.app_name, config.app_version);
         let builder = || reqwest::Client::builder().user_agent(&user_agent);
         let http = builder().build()?;
@@ -178,7 +178,7 @@ impl Client {
         })
     }
 
-    pub fn config(&self) -> &Config {
+    pub fn config(&self) -> &ClientConfig {
         &self.inner.config
     }
 

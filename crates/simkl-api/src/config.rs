@@ -1,5 +1,5 @@
-//! What a [`Client`](crate::Client) is configured with, and the defaults
-//! Simkl documents.
+//! [`ClientConfig`], passed to [`Client::new`](crate::Client::new), with the
+//! defaults Simkl documents.
 
 use std::num::NonZeroU32;
 use std::time::Duration;
@@ -8,7 +8,7 @@ use url::Url;
 
 /// Who is calling Simkl. Every request carries these.
 #[derive(Debug, Clone)]
-pub struct Config {
+pub struct ClientConfig {
     pub client_id: String,
     pub app_name: String,
     pub app_version: String,
@@ -18,7 +18,7 @@ pub struct Config {
     pub retries: Retries,
 }
 
-impl Config {
+impl ClientConfig {
     pub fn new(
         client_id: impl Into<String>,
         app_name: impl Into<String>,
