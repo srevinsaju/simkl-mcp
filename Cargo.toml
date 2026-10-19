@@ -26,6 +26,7 @@ oauth2 = { version = "5", default-features = false }
 oauth-as = { version = "1", features = ["http", "axum", "jwt", "jwt-ed25519", "cimd", "resource-metadata"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls"] }
 rmcp = { version = "3.5", features = ["server", "macros", "schemars", "transport-io", "transport-streamable-http-server"] }
+rstest = { version = "0.27", default-features = false }
 schemars = "1"
 secrecy = "0.10"
 serde = { version = "1", features = ["derive"] }
