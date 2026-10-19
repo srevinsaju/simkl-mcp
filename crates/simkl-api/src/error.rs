@@ -6,6 +6,8 @@ use std::time::Duration;
 
 use reqwest::StatusCode;
 
+use crate::media::SimklId;
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
@@ -44,6 +46,19 @@ pub enum Error {
         error: Option<String>,
         message: Option<String>,
     },
+
+    /// Simkl answered with a different title than the one requested,
+    /// which it does for some IDs.
+    #[error("asked Simkl for title {requested} but got {received:?}")]
+    UnexpectedTitle {
+        requested: SimklId,
+        received: Option<SimklId>,
+    },
+
+    /// `/redirect` pointed somewhere other than a Simkl title page, or
+    /// sent no `Location`.
+    #[error("unexpected redirect from Simkl: {location:?}")]
+    UnexpectedRedirect { location: Option<String> },
 
     /// The request was refused before sending: Simkl would reject, ignore
     /// or silently rewrite it.
