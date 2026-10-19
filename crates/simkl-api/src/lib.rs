@@ -22,3 +22,6 @@ mod error;
 pub mod library;
 pub mod media;
 mod sync;
+
+pub use client::{AccessToken, Client, Config, Limits, Retries, UserClient};
+pub use error::{Error, Result};
