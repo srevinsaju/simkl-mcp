@@ -55,6 +55,11 @@ pub enum Error {
         received: Option<SimklId>,
     },
 
+    /// `/redirect` pointed somewhere other than a Simkl title page, or
+    /// sent no `Location`.
+    #[error("unexpected redirect from Simkl: {location:?}")]
+    UnexpectedRedirect { location: Option<String> },
+
     /// The request was refused before sending: Simkl would reject, ignore
     /// or silently rewrite it.
     #[error("invalid request: {0}")]

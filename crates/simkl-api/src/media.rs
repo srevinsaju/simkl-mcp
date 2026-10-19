@@ -9,13 +9,14 @@
 //! See [standard media objects](https://api.simkl.org/conventions/standard-media-objects).
 
 use std::collections::BTreeMap;
+use std::str::FromStr;
 
 use derive_more::{AsRef, Display, From, Into};
 use garde::Validate;
 use jiff::Timestamp;
 use jiff::civil::Date;
 use schemars::JsonSchema;
-use serde::de::DeserializeOwned;
+use serde::de::{DeserializeOwned, IntoDeserializer};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::{
@@ -102,6 +103,16 @@ kind_names! {
     trending_type: "movies", "tv", "anime";
     /// Name of calendar files on data.simkl.in.
     calendar_type: "movie_release", "tv", "anime";
+}
+
+/// Parses any spelling Simkl uses for a kind: `movie`, `movies`, `show`,
+/// `shows`, `tv`, `anime`.
+impl FromStr for Kind {
+    type Err = serde::de::value::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Self::deserialize(s.into_deserializer())
+    }
 }
 
 impl Kind {
@@ -446,7 +457,7 @@ pub struct Resolve {
 
 endpoint!(Resolve: Redirect => Option<(Kind, SimklId)>,
     path = |self| "/redirect",
-    parse = |_, reply: Reply| Ok(reply.header("location").and_then(parse_simkl_location)));
+    parse = |_, reply: Reply| parse_simkl_location(reply.header("location")));
 
 impl From<Resolve> for BTreeMap<&'static str, String> {
     fn from(Resolve { kind, ids }: Resolve) -> Self {
@@ -468,16 +479,24 @@ fn has_external_id(ids: &Ids, _: &()) -> garde::Result {
     }
 }
 
-/// `https://simkl.com/tv/17465/game-of-thrones` (or protocol-relative
-/// `//simkl.com/...`) to `(Show, 17465)`. A bare `//simkl.com` means no match.
-fn parse_simkl_location(location: &str) -> Option<(Kind, SimklId)> {
-    let rest = location.strip_prefix("https:").unwrap_or(location);
-    let mut parts = rest.strip_prefix("//simkl.com/")?.split('/');
-    let kind = match parts.next()? {
-        "movies" => Kind::Movie,
-        "tv" => Kind::Show,
-        "anime" => Kind::Anime,
-        _ => return None,
+/// Where `/redirect` pointed: `https://simkl.com/tv/17465/game-of-thrones`,
+/// or protocol-relative `//simkl.com/...`. A bare `//simkl.com` means no
+/// match ([null values](https://api.simkl.org/conventions/null-values)).
+fn parse_simkl_location(location: Option<&str>) -> Result<Option<(Kind, SimklId)>> {
+    let unexpected = || Error::UnexpectedRedirect {
+        location: location.map(str::to_owned),
     };
-    Some((kind, SimklId(parts.next()?.parse().ok()?)))
+    let location = location.ok_or_else(unexpected)?;
+    let path = location.strip_prefix("https:").unwrap_or(location);
+    let path = path.strip_prefix("//simkl.com").ok_or_else(unexpected)?;
+    if path.is_empty() || path == "/" {
+        return Ok(None);
+    }
+    let mut segments = path.strip_prefix('/').ok_or_else(unexpected)?.split('/');
+    let kind = segments.next().and_then(|s| s.parse().ok());
+    let id = segments.next().and_then(|s| s.parse().ok());
+    match (kind, id) {
+        (Some(kind), Some(id)) => Ok(Some((kind, SimklId(id)))),
+        _ => Err(unexpected()),
+    }
 }
