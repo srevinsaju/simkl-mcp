@@ -1,10 +1,10 @@
 [package]
 name = "simkl-api"
 description = "Typed client for the Simkl API (AUTH V2), with Simkl's request rules built in"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-repository.workspace = true
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
 
 [dependencies]
 bon = { workspace = true }
