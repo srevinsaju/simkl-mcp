@@ -63,7 +63,6 @@ pub trait Anonymous: Access {}
 macro_rules! access {
     ($($(#[$doc:meta])* $name:ident $({$anonymous:ident})? = $rules:expr;)+) => {$(
         $(#[$doc])*
-        #[expect(dead_code, reason = "endpoints arrive in the next PR")]
         #[derive(Debug)]
         pub enum $name {}
         impl Access for $name {
@@ -81,6 +80,7 @@ access! {
     /// The user's data, read.
     Read = Rules { host: Host::Api, token: true, limit: Some(Limit::Read), follow_redirects: true };
     /// The user's data, written.
+    #[expect(dead_code, reason = "write endpoints arrive in the next PR")]
     Write = Rules { host: Host::Api, token: true, limit: Some(Limit::Write), follow_redirects: true };
     /// `/redirect`, whose answer is the `Location` it redirects to.
     Redirect = Rules { host: Host::Api, token: true, limit: None, follow_redirects: false };
@@ -94,14 +94,12 @@ pub struct Rules {
     follow_redirects: bool,
 }
 
-#[expect(dead_code, reason = "endpoints arrive in the next PR")]
 #[derive(Debug, Clone, Copy)]
 enum Host {
     Api,
     Data,
 }
 
-#[expect(dead_code, reason = "endpoints arrive in the next PR")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Limit {
     Read,
