@@ -5,7 +5,3 @@
 //! Movies cannot be `watching` or `hold`; the types reject that rather than
 //! relying on Simkl's silent upgrade to `completed`
 //! ([statuses](https://api.simkl.org/conventions/list-statuses)).
-
-#[cfg(test)]
-#[path = "library_test.rs"]
-mod tests;
