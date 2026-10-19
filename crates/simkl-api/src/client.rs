@@ -10,7 +10,7 @@
 //! | [`Data`] | data.simkl.in | never | none (edge-cached) |
 //! | [`Read`] | api.simkl.com | required | user's GET limit |
 //! | [`Write`] | api.simkl.com | required | user's POST limit, one write at a time |
-//! | [`Redirect`] | api.simkl.com | never | none; the answer is the redirect |
+//! | [`Redirect`] | api.simkl.com | required | none; the answer is the redirect |
 //!
 //! [`Client::call`] takes only token-free endpoints; [`UserClient::call`]
 //! takes any. Reads never carry a body, which Simkl would treat as a write.
@@ -83,7 +83,7 @@ access! {
     #[expect(dead_code, reason = "write endpoints arrive in the next PR")]
     Write = Rules { host: Host::Api, token: true, limit: Some(Limit::Write), follow_redirects: true };
     /// `/redirect`, whose answer is the `Location` it redirects to.
-    Redirect {Anonymous} = Rules { host: Host::Api, token: false, limit: None, follow_redirects: false };
+    Redirect = Rules { host: Host::Api, token: true, limit: None, follow_redirects: false };
 }
 
 #[derive(Debug, Clone, Copy)]
