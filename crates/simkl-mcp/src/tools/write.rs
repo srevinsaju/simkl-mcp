@@ -1,5 +1,5 @@
 //! Writes (`media:write`): `set_status`, `mark_watched`, `unmark_watched`,
-//! `rate`.
+//! `rate`, `unrate`.
 //!
-//! An ambiguous title returns an input-required result listing the candidates
-//! instead of guessing.
+//! Every write names its titles by ID; a name alone is searched first, so
+//! nothing is guessed. Titles Simkl can't match come back as `not_found`.
