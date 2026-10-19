@@ -23,14 +23,14 @@ use std::time::Duration;
 
 use backon::{ConstantBuilder, Retryable};
 use garde::Validate;
-use governor::{DefaultKeyedRateLimiter, Quota, RateLimiter};
+use governor::{DefaultDirectRateLimiter, Quota, RateLimiter};
 use moka::future::Cache;
 use reqwest::header::{self, HeaderMap};
 use reqwest::{Method, RequestBuilder, StatusCode};
 use secrecy::{ExposeSecret, SecretString};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 
 use crate::config::{ClientConfig, Limits};
 use crate::error::{Error, Result};
@@ -122,24 +122,20 @@ struct Inner {
     users: UserLimits,
 }
 
-/// Per-user rate limits and write serialisation, keyed by a hash of the token
-/// so raw tokens are not kept as map keys.
+/// Per-user state, keyed by a hash of the token so raw tokens are not kept
+/// as map keys. Users idle for `idle_user_ttl` are forgotten.
 struct UserLimits {
     hasher: RandomState,
-    reads: DefaultKeyedRateLimiter<u64>,
-    writes: DefaultKeyedRateLimiter<u64>,
-    write_locks: Cache<u64, Arc<Mutex<()>>>,
-    prune_at_users: usize,
+    limits: Limits,
+    users: Cache<u64, Arc<UserState>>,
 }
 
 impl UserLimits {
     fn new(limits: Limits) -> Self {
         Self {
             hasher: RandomState::new(),
-            reads: RateLimiter::keyed(Quota::per_second(limits.reads_per_second)),
-            writes: RateLimiter::keyed(Quota::per_second(limits.writes_per_second)),
-            write_locks: Cache::builder().time_to_idle(limits.idle_user_ttl).build(),
-            prune_at_users: limits.prune_at_users,
+            limits,
+            users: Cache::builder().time_to_idle(limits.idle_user_ttl).build(),
         }
     }
 
@@ -147,15 +143,45 @@ impl UserLimits {
         self.hasher.hash_one(token.expose_secret())
     }
 
-    async fn until_ready(&self, limit: Limit, key: u64) {
-        let limiter = match limit {
-            Limit::Read => &self.reads,
-            Limit::Write => &self.writes,
-        };
-        if limiter.len() > self.prune_at_users {
-            limiter.retain_recent();
+    async fn get(&self, key: u64) -> Arc<UserState> {
+        let limits = self.limits;
+        self.users
+            .get_with(key, async move { Arc::new(UserState::new(limits)) })
+            .await
+    }
+}
+
+/// One user's rate limits, and the lock that keeps their writes one at a
+/// time: a rate limit alone lets a slow write overlap the next.
+struct UserState {
+    reads: DefaultDirectRateLimiter,
+    writes: DefaultDirectRateLimiter,
+    write_lock: Mutex<()>,
+}
+
+impl UserState {
+    fn new(limits: Limits) -> Self {
+        Self {
+            reads: RateLimiter::direct(Quota::per_second(limits.reads_per_second)),
+            writes: RateLimiter::direct(Quota::per_second(limits.writes_per_second)),
+            write_lock: Mutex::new(()),
         }
-        limiter.until_key_ready(&key).await;
+    }
+
+    /// Wait for this user's rate limit. Writes also take the write lock,
+    /// held until the returned guard drops.
+    async fn admit(&self, limit: Limit) -> Option<MutexGuard<'_, ()>> {
+        match limit {
+            Limit::Read => {
+                self.reads.until_ready().await;
+                None
+            }
+            Limit::Write => {
+                let guard = self.write_lock.lock().await;
+                self.writes.until_ready().await;
+                Some(guard)
+            }
+        }
     }
 }
 
@@ -215,17 +241,14 @@ impl Client {
             users,
         } = &*self.inner;
 
-        let mut _write_guard = None;
-        if let (Some(user), Some(limit)) = (user, rules.limit) {
-            if limit == Limit::Write {
-                let lock = users
-                    .write_locks
-                    .get_with(user.key, async { Arc::default() })
-                    .await;
-                _write_guard = Some(lock.lock_owned().await);
-            }
-            users.until_ready(limit, user.key).await;
-        }
+        let user_state = match (user, rules.limit) {
+            (Some(user), Some(_)) => Some(users.get(user.key).await),
+            _ => None,
+        };
+        let _write_guard = match (&user_state, rules.limit) {
+            (Some(state), Some(limit)) => state.admit(limit).await,
+            _ => None,
+        };
 
         let base = match rules.host {
             Host::Api => &config.api_url,

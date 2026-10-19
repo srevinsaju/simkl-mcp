@@ -41,10 +41,9 @@ impl ClientConfig {
 pub struct Limits {
     pub reads_per_second: NonZeroU32,
     pub writes_per_second: NonZeroU32,
-    /// Forget a user's write lock once they have been idle this long.
+    /// Forget a user's rate-limit state and write lock once they have been
+    /// idle this long.
     pub idle_user_ttl: Duration,
-    /// Drop stale rate-limit state once this many users are tracked.
-    pub prune_at_users: usize,
 }
 
 impl Default for Limits {
@@ -55,7 +54,6 @@ impl Default for Limits {
             reads_per_second: NonZeroU32::new(10).unwrap(),
             writes_per_second: NonZeroU32::new(1).unwrap(),
             idle_user_ttl: Duration::from_secs(10 * 60),
-            prune_at_users: 10_000,
         }
     }
 }
