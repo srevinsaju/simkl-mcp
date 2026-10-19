@@ -22,6 +22,3 @@ mod error;
 pub mod library;
 pub mod media;
 mod sync;
-
-#[cfg(test)]
-mod mock_simkl;
