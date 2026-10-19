@@ -1,10 +1,10 @@
 [package]
 name = "simkl-mcp"
 description = "MCP server for Simkl: track movies, TV shows and anime from Claude and other MCP hosts"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-repository.workspace = true
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
 
 [dependencies]
 simkl-api = { workspace = true }
