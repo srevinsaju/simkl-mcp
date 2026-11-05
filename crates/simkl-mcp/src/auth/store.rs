@@ -11,7 +11,6 @@
 //! restored from the argument on the way out. The schema is
 //! `migrations/0001_auth_store.sql`.
 
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::SystemTime;
 
@@ -23,7 +22,6 @@ use oauth_as::{
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{SqliteConnection, SqlitePool};
 
 /// The authorization server's state: clients, codes, tokens and revocation
@@ -33,22 +31,9 @@ pub struct Store {
 }
 
 impl Store {
-    /// Opens (or creates) the database at `url` and applies migrations.
-    pub async fn open(url: &str) -> Result<Store, sqlx::Error> {
-        let options = SqliteConnectOptions::from_str(url)?
-            .create_if_missing(true)
-            .journal_mode(SqliteJournalMode::Wal);
-        // One connection that never closes: transactions queue on it instead
-        // of racing for the write lock, and `sqlite::memory:` keeps its data.
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .min_connections(1)
-            .idle_timeout(None)
-            .max_lifetime(None)
-            .connect_with(options)
-            .await?;
-        sqlx::migrate!().run(&pool).await?;
-        Ok(Store { pool })
+    /// The store over the pool `auth::open_database` returned.
+    pub fn new(pool: SqlitePool) -> Store {
+        Store { pool }
     }
 
     async fn begin(&self) -> Result<sqlx::Transaction<'static, sqlx::Sqlite>, StorageError> {
@@ -537,12 +522,14 @@ async fn write_token(conn: &mut SqliteConnection, token: &IssuedToken) -> Result
     let mut stored = token.clone();
     stored.access_token = String::new();
     sqlx::query(
-        "INSERT OR REPLACE INTO access_tokens (token_hash, client_id, family_id, expires_at_ns, record)
-         VALUES (?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO access_tokens
+             (token_hash, client_id, family_id, subject, expires_at_ns, record)
+         VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(secret_hash(&token.access_token))
     .bind(token.client_id.as_str())
     .bind(token.family_id.as_deref())
+    .bind(token.subject.as_deref())
     .bind(nanos(token.expires_at)?)
     .bind(encode(&stored)?)
     .execute(conn)
