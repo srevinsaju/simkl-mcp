@@ -522,12 +522,14 @@ async fn write_token(conn: &mut SqliteConnection, token: &IssuedToken) -> Result
     let mut stored = token.clone();
     stored.access_token = String::new();
     sqlx::query(
-        "INSERT OR REPLACE INTO access_tokens (token_hash, client_id, family_id, expires_at_ns, record)
-         VALUES (?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO access_tokens
+             (token_hash, client_id, family_id, subject, expires_at_ns, record)
+         VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(secret_hash(&token.access_token))
     .bind(token.client_id.as_str())
     .bind(token.family_id.as_deref())
+    .bind(token.subject.as_deref())
     .bind(nanos(token.expires_at)?)
     .bind(encode(&stored)?)
     .execute(conn)

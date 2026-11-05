@@ -22,6 +22,10 @@ mod store;
     reason = "used once `serve` mounts the authorization server"
 )]
 mod upstream;
+#[expect(
+    dead_code,
+    reason = "used once `serve` mounts the authorization server"
+)]
 mod vault;
 
 use std::str::FromStr;
