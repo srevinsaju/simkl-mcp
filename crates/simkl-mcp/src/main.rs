@@ -1,14 +1,14 @@
 //! simkl-mcp: an MCP server for Simkl.
 //!
-//! `serve` runs the remote Streamable HTTP server with its own OAuth
-//! authorization server in front of Simkl. `stdio` runs locally for a single
-//! user who signs in with Simkl's device flow.
+//! `serve` runs the Streamable HTTP server with its own OAuth authorization
+//! server in front of Simkl.
 
 mod auth;
 mod config;
 mod http;
+#[expect(dead_code, reason = "used once `serve` mounts /mcp")]
 mod server;
-mod stdio;
+#[expect(dead_code, reason = "used once `serve` mounts /mcp")]
 mod tools;
 mod views;
 
@@ -23,15 +23,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Run the remote Streamable HTTP server.
+    /// Run the Streamable HTTP server.
     Serve,
-    /// Run over stdio for a single local user.
-    Stdio,
 }
 
 fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
         Command::Serve => anyhow::bail!("serve is not implemented yet"),
-        Command::Stdio => anyhow::bail!("stdio is not implemented yet"),
     }
 }
