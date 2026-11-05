@@ -9,6 +9,13 @@
 
 mod clients;
 mod login;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "used once `serve` mounts the authorization server"
+    )
+)]
 mod store;
 mod upstream;
 mod vault;
