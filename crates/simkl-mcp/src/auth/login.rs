@@ -43,10 +43,9 @@ use crate::auth::store::Store;
 use crate::auth::upstream::{Callback, PendingSignIn, SimklScope, Upstream, UpstreamError};
 use crate::auth::vault::Vault;
 
-/// The cookie that ties a pending sign-in to its browser.
+/// The cookie that ties a pending sign-in to its browser. An identifier
+/// rather than a setting: renaming it only orphans sign-ins in flight.
 const COOKIE_NAME: &str = "simkl_mcp_signin";
-/// How long a sign-in may take, consent page to Simkl callback.
-const SIGN_IN_TTL: Duration = Duration::from_secs(10 * 60);
 
 /// What the sign-in routes share.
 #[derive(Clone)]
@@ -57,6 +56,8 @@ pub struct Login {
     pending: Arc<PendingSignIns<SignIn>>,
     /// Whether cookies need `Secure`: the public URL is `https`.
     secure: bool,
+    /// How long a sign-in may take, consent page to Simkl callback.
+    sign_in_ttl: Duration,
 }
 
 impl Login {
@@ -65,13 +66,15 @@ impl Login {
         upstream: Upstream,
         vault: Arc<Vault>,
         secure: bool,
+        sign_in_ttl: Duration,
     ) -> Login {
         Login {
             server,
             upstream,
             vault,
-            pending: Arc::new(PendingSignIns::new(SIGN_IN_TTL)),
+            pending: Arc::new(PendingSignIns::new(sign_in_ttl)),
             secure,
+            sign_in_ttl,
         }
     }
 }
@@ -158,7 +161,7 @@ pub async fn authorize(
     let mut response = Html(page).into_response();
     response
         .headers_mut()
-        .insert(SET_COOKIE, binding_cookie(&binding, login.secure));
+        .insert(SET_COOKIE, binding_cookie(&binding, &login));
     response
 }
 
@@ -338,11 +341,11 @@ fn browser_binding(headers: &HeaderMap) -> Option<String> {
         .map(str::to_owned)
 }
 
-fn binding_cookie(binding: &str, secure: bool) -> HeaderValue {
-    let secure = if secure { "; Secure" } else { "" };
+fn binding_cookie(binding: &str, login: &Login) -> HeaderValue {
+    let secure = if login.secure { "; Secure" } else { "" };
     HeaderValue::from_str(&format!(
         "{COOKIE_NAME}={binding}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}{secure}",
-        SIGN_IN_TTL.as_secs()
+        login.sign_in_ttl.as_secs()
     ))
     .unwrap()
 }

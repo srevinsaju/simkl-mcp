@@ -43,21 +43,42 @@ use upstream::Upstream;
 pub const SIMKL_CALLBACK_PATH: &str = "/auth/simkl/callback";
 
 /// The `auth` section of the server's configuration. Durations take jiff's
-/// friendly form, such as `60s`.
+/// friendly form, such as `60s`. Unknown keys are an error, so a misspelled
+/// setting never silently keeps its default.
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct AuthConfig {
-    #[serde(flatten)]
-    pub vault: VaultConfig,
+    /// Refresh a Simkl access token used this close to its 7-day expiry.
+    pub refresh_margin: SignedDuration,
+    /// How long a new connection may go without tokens, from the Simkl
+    /// callback to the client redeeming its authorization code.
+    pub prune_grace: SignedDuration,
     /// How often expired grants are swept and orphaned connections pruned.
     pub sweep_interval: SignedDuration,
+    /// How long a sign-in may take, consent page to Simkl callback.
+    pub sign_in_ttl: SignedDuration,
+    /// How long a token or revoke request to Simkl may take.
+    pub simkl_timeout: SignedDuration,
 }
 
 impl Default for AuthConfig {
     fn default() -> AuthConfig {
+        let vault = VaultConfig::default();
         AuthConfig {
-            vault: VaultConfig::default(),
+            refresh_margin: vault.refresh_margin,
+            prune_grace: vault.prune_grace,
             sweep_interval: SignedDuration::from_secs(60),
+            sign_in_ttl: SignedDuration::from_mins(10),
+            simkl_timeout: SignedDuration::from_secs(30),
+        }
+    }
+}
+
+impl AuthConfig {
+    fn vault(&self) -> VaultConfig {
+        VaultConfig {
+            refresh_margin: self.refresh_margin,
+            prune_grace: self.prune_grace,
         }
     }
 }
@@ -101,10 +122,26 @@ impl Auth {
         );
 
         let callback = Url::parse(&format!("{issuer}{SIMKL_CALLBACK_PATH}"))?;
-        let upstream = Upstream::new(simkl_client_id, simkl_client_secret, callback)?;
-        let vault = Arc::new(Vault::new(pool, vault_key, upstream.clone(), config.vault));
+        let upstream = Upstream::new(
+            simkl_client_id,
+            simkl_client_secret,
+            callback,
+            config.simkl_timeout.unsigned_abs(),
+        )?;
+        let vault = Arc::new(Vault::new(
+            pool,
+            vault_key,
+            upstream.clone(),
+            config.vault(),
+        ));
         let secure = issuer.starts_with("https://");
-        let login = Login::new(server.clone(), upstream, vault.clone(), secure);
+        let login = Login::new(
+            server.clone(),
+            upstream,
+            vault.clone(),
+            secure,
+            config.sign_in_ttl.unsigned_abs(),
+        );
         Ok(Auth {
             server,
             vault,

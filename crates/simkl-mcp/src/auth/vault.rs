@@ -20,7 +20,6 @@ use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use jiff::{SignedDuration, Timestamp};
 use moka::future::Cache;
 use secrecy::{ExposeSecret, SecretString};
-use serde::Deserialize;
 use simkl_api::AccessToken;
 use sqlx::SqlitePool;
 use tokio::sync::Mutex;
@@ -38,10 +37,9 @@ const KEY_ID: i64 = 1;
 /// (https://api.simkl.org/api-reference/auth-v2), not a setting.
 const REFRESH_WINDOW: SignedDuration = SignedDuration::from_hours(180 * 24);
 
-/// How the vault refreshes and prunes connections: the `auth` section of the
-/// server's configuration. Durations take jiff's friendly form, such as `24h`.
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
+/// How the vault refreshes and prunes connections, set from the `auth`
+/// section of the server's configuration.
+#[derive(Debug, Clone, Copy)]
 pub struct VaultConfig {
     /// Refresh an access token used this close to its 7-day expiry.
     pub refresh_margin: SignedDuration,

@@ -26,6 +26,7 @@ use axum::routing::get;
 use oauth_as::resource_metadata::{ProtectedResourceConfig, ProtectedResourceMetadata};
 use rmcp::transport::streamable_http_server::session::never::NeverSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
+use serde::Deserialize;
 use serde_json::Value;
 
 use crate::auth::{Auth, ConnectionId, READ_SCOPE, VaultError, WRITE_SCOPE};
@@ -33,8 +34,21 @@ use crate::config::Config;
 use crate::server::SimklServer;
 use crate::tools;
 
-/// A JSON-RPC request larger than this is refused before it is parsed.
-const MAX_REQUEST_BYTES: usize = 1 << 20;
+/// The `mcp` section of the server's configuration.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct McpConfig {
+    /// A JSON-RPC request larger than this is refused before it is parsed.
+    pub max_request_bytes: usize,
+}
+
+impl Default for McpConfig {
+    fn default() -> McpConfig {
+        McpConfig {
+            max_request_bytes: 1 << 20,
+        }
+    }
+}
 
 /// What the `/mcp` middleware needs.
 #[derive(Clone)]
@@ -46,6 +60,7 @@ struct Mcp {
     write_tools: Arc<HashSet<String>>,
     /// Sent in every challenge, so clients can find the authorization server.
     metadata_url: Arc<str>,
+    max_request_bytes: usize,
 }
 
 /// The whole server.
@@ -68,6 +83,7 @@ pub fn router(
         resource: resource.into(),
         write_tools: Arc::new(tools::write_tool_names()),
         metadata_url: format!("{}{metadata_path}", config.issuer()).into(),
+        max_request_bytes: config.mcp.max_request_bytes,
     };
     let host = config
         .public_url
@@ -119,7 +135,7 @@ async fn authenticate(State(mcp): State<Mcp>, request: Request, next: Next) -> R
     };
 
     let (parts, body) = request.into_parts();
-    let Ok(body) = to_bytes(body, MAX_REQUEST_BYTES).await else {
+    let Ok(body) = to_bytes(body, mcp.max_request_bytes).await else {
         return StatusCode::PAYLOAD_TOO_LARGE.into_response();
     };
     if !issued.scope.contains(WRITE_SCOPE) && calls_write_tool(&body, &mcp.write_tools) {

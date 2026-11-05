@@ -43,11 +43,13 @@ pub struct Upstream {
 
 impl Upstream {
     /// `redirect_uri` must be registered with Simkl exactly as given; for a
-    /// loopback address it must include the port in use.
+    /// loopback address it must include the port in use. `timeout` bounds
+    /// each token and revoke request.
     pub fn new(
         client_id: String,
         client_secret: SecretString,
         redirect_uri: Url,
+        timeout: Duration,
     ) -> Result<Upstream, reqwest::Error> {
         let oauth = BasicClient::new(ClientId::new(client_id))
             .set_client_secret(ClientSecret::new(client_secret.expose_secret().to_owned()))
@@ -64,7 +66,7 @@ impl Upstream {
                 env!("CARGO_PKG_VERSION")
             ))
             .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_secs(30))
+            .timeout(timeout)
             .build()?;
         Ok(Upstream {
             oauth,

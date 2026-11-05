@@ -18,6 +18,7 @@ use simkl_api::ClientConfig;
 use url::Url;
 
 use crate::auth::{AuthConfig, VaultKey};
+use crate::http::McpConfig;
 
 const ENV_PREFIX: &str = "SIMKL_MCP_";
 /// Environment variables under [`ENV_PREFIX`] that are not configuration:
@@ -40,6 +41,8 @@ pub struct Config {
     pub client: ClientConfig,
     #[serde(default)]
     pub auth: AuthConfig,
+    #[serde(default)]
+    pub mcp: McpConfig,
 }
 
 fn default_bind() -> SocketAddr {
