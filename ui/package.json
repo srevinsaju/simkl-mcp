@@ -1,0 +1,19 @@
+{
+  "name": "simkl-mcp-ui",
+  "private": true,
+  "type": "module",
+  "description": "MCP Apps views for simkl-mcp, built into single-file HTML that the server embeds",
+  "scripts": {
+    "build": "INPUT=titles vite build && INPUT=title vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@modelcontextprotocol/ext-apps": "^2.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.3",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}
