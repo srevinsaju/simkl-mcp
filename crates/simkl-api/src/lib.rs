@@ -11,6 +11,13 @@
 //! - library reads gated on `/sync/activities`, never polling `/sync/all-items`
 //!   ([sync](https://api.simkl.org/guides/sync));
 //! - `200` responses carrying an `error` key surface as errors.
+//!
+//! `openapi.json` is Simkl's OpenAPI 3.1 spec, committed unedited from
+//! <https://api.simkl.org/openapi.json>. Refresh it from the repository root:
+//!
+//! ```sh
+//! curl -fsSL https://api.simkl.org/openapi.json -o crates/simkl-api/openapi.json
+//! ```
 
 #[macro_use]
 mod macros;
