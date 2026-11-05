@@ -22,11 +22,14 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use askama::Template;
+use askama_web::WebTemplate;
 use axum::Form;
+use axum::extract::rejection::QueryRejection;
 use axum::extract::{Query, RawQuery, State};
-use axum::http::header::{COOKIE, LOCATION, SET_COOKIE};
-use axum::http::{HeaderMap, HeaderValue, StatusCode};
-use axum::response::{Html, IntoResponse, Response};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Redirect, Response};
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use moka::future::Cache;
@@ -43,10 +46,6 @@ use crate::auth::store::Store;
 use crate::auth::upstream::{Callback, PendingSignIn, SimklScope, Upstream, UpstreamError};
 use crate::auth::vault::Vault;
 
-/// The cookie that ties a pending sign-in to its browser. An identifier
-/// rather than a setting: renaming it only orphans sign-ins in flight.
-const COOKIE_NAME: &str = "simkl_mcp_signin";
-
 /// What the sign-in routes share.
 #[derive(Clone)]
 pub struct Login {
@@ -54,7 +53,7 @@ pub struct Login {
     upstream: Upstream,
     vault: Arc<Vault>,
     pending: Arc<PendingSignIns<SignIn>>,
-    /// Whether cookies need `Secure`: the public URL is `https`.
+    /// Whether the public URL is `https`, so the cookie can be `Secure`.
     secure: bool,
     /// How long a sign-in may take, consent page to Simkl callback.
     sign_in_ttl: Duration,
@@ -76,6 +75,39 @@ impl Login {
             secure,
             sign_in_ttl,
         }
+    }
+
+    /// The cookie that ties a pending sign-in to its browser. Over `https`
+    /// it carries the `__Host-` prefix, so the browser only accepts it
+    /// `Secure`, host-only and for `/`. It is an identifier rather than a
+    /// setting: renaming it only orphans sign-ins in flight.
+    fn cookie_name(&self) -> &'static str {
+        match self.secure {
+            true => "__Host-simkl_mcp_signin",
+            false => "simkl_mcp_signin",
+        }
+    }
+
+    fn binding(&self, jar: &CookieJar) -> Option<String> {
+        jar.get(self.cookie_name())
+            .map(|cookie| cookie.value().to_owned())
+            .filter(|value| !value.is_empty())
+    }
+
+    fn binding_cookie(&self, binding: String) -> Cookie<'static> {
+        let max_age = cookie::time::Duration::try_from(self.sign_in_ttl).unwrap();
+        Cookie::build((self.cookie_name(), binding))
+            .path("/")
+            .http_only(true)
+            .secure(self.secure)
+            .same_site(SameSite::Lax)
+            .max_age(max_age)
+            .build()
+    }
+
+    /// Clears the cookie once the sign-in is over.
+    fn forget(&self, jar: CookieJar) -> CookieJar {
+        jar.remove(Cookie::build(self.cookie_name()).path("/"))
     }
 }
 
@@ -122,10 +154,28 @@ impl<T: Send + Sync + 'static> PendingSignIns<T> {
     }
 }
 
+/// `templates/consent.html`: asks the user to allow a client.
+#[derive(Template, WebTemplate)]
+#[template(path = "consent.html")]
+struct ConsentPage {
+    client: String,
+    redirect_host: String,
+    write: bool,
+    key: String,
+}
+
+/// `templates/message.html`: a sign-in that cannot go on.
+#[derive(Template, WebTemplate)]
+#[template(path = "message.html")]
+struct MessagePage {
+    title: &'static str,
+    text: String,
+}
+
 /// `GET /authorize`: validate the client's request and ask the user.
 pub async fn authorize(
     State(login): State<Login>,
-    headers: HeaderMap,
+    jar: CookieJar,
     RawQuery(query): RawQuery,
 ) -> Response {
     let pairs: Vec<(String, String)> =
@@ -137,7 +187,7 @@ pub async fn authorize(
         let client_id = ClientId::new(client_id.as_ref());
         if let Err(error) = widen_registered_scopes(login.server.store(), &client_id).await {
             tracing::error!(%error, "widening a client's scopes failed");
-            return message(
+            return failed(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Something went wrong. Try again.",
             );
@@ -151,18 +201,25 @@ pub async fn authorize(
         Ok(Some(client)) => client.name.clone(),
         _ => None,
     };
-    let key = random_token();
-    let page = consent_page(&validated, client_name.as_deref(), &key);
-    let binding = browser_binding(&headers).unwrap_or_else(random_token);
+    let page = ConsentPage {
+        client: client_name.unwrap_or_else(|| validated.client_id.as_str().to_owned()),
+        redirect_host: url::Url::parse(&validated.redirect_uri)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned))
+            .unwrap_or_else(|| validated.redirect_uri.clone()),
+        write: validated.scope.contains(WRITE_SCOPE),
+        key: random_token(),
+    };
+    let binding = login.binding(&jar).unwrap_or_else(random_token);
     login
         .pending
-        .put(key, binding.clone(), SignIn::Consent(validated))
+        .put(
+            page.key.clone(),
+            binding.clone(),
+            SignIn::Consent(validated),
+        )
         .await;
-    let mut response = Html(page).into_response();
-    response
-        .headers_mut()
-        .insert(SET_COOKIE, binding_cookie(&binding, &login));
-    response
+    (jar.add(login.binding_cookie(binding)), page).into_response()
 }
 
 #[derive(Deserialize)]
@@ -174,16 +231,16 @@ pub struct ConsentForm {
 /// `POST /authorize`: the consent page's answer.
 pub async fn consent(
     State(login): State<Login>,
-    headers: HeaderMap,
+    jar: CookieJar,
     Form(form): Form<ConsentForm>,
 ) -> Response {
-    let binding = browser_binding(&headers);
+    let binding = login.binding(&jar);
     let Some(SignIn::Consent(request)) = login.pending.take(&form.key, binding.as_deref()).await
     else {
         return expired();
     };
     if form.action != "allow" {
-        return see_other(&request.denied().location());
+        return (login.forget(jar), see_other(&request.denied().location())).into_response();
     }
     let scope = match request.scope.contains(WRITE_SCOPE) {
         true => SimklScope::ReadWrite,
@@ -210,23 +267,37 @@ pub struct CallbackState {
 /// `GET /auth/simkl/callback`: Simkl sent the user back.
 pub async fn callback(
     State(login): State<Login>,
-    headers: HeaderMap,
-    Query(CallbackState { state }): Query<CallbackState>,
-    Query(callback): Query<Callback>,
+    jar: CookieJar,
+    state: Result<Query<CallbackState>, QueryRejection>,
+    callback: Result<Query<Callback>, QueryRejection>,
 ) -> Response {
-    let Some(SignIn::Simkl { request, simkl }) = login
-        .pending
-        .take(&state, browser_binding(&headers).as_deref())
-        .await
-    else {
-        return expired();
+    let binding = login.binding(&jar);
+    let jar = login.forget(jar);
+    let (Ok(Query(CallbackState { state })), Ok(Query(callback))) = (state, callback) else {
+        return (jar, expired()).into_response();
     };
+    let Some(SignIn::Simkl { request, simkl }) =
+        login.pending.take(&state, binding.as_deref()).await
+    else {
+        return (jar, expired()).into_response();
+    };
+    let response = finish(&login, request, simkl, callback).await;
+    (jar, response).into_response()
+}
+
+/// Exchanges Simkl's code, keeps the tokens, and issues our code.
+async fn finish(
+    login: &Login,
+    request: ValidatedAuthorizationRequest,
+    simkl: PendingSignIn,
+    callback: Callback,
+) -> Response {
     let grant = match login.upstream.exchange(simkl, callback).await {
         Ok(grant) => grant,
         Err(UpstreamError::Denied) => return see_other(&request.denied().location()),
         Err(error) => {
             tracing::warn!(%error, "Simkl sign-in failed");
-            return message(
+            return failed(
                 StatusCode::BAD_GATEWAY,
                 "Signing in with Simkl failed. Start again from your app.",
             );
@@ -235,7 +306,7 @@ pub async fn callback(
     // Our token's scope is the client's request, so Simkl must have granted
     // as much, or write tools would fail behind a token that allows them.
     if request.scope.contains(WRITE_SCOPE) && grant.scope != SimklScope::ReadWrite {
-        return message(
+        return failed(
             StatusCode::BAD_GATEWAY,
             "Simkl did not grant write access. Start again from your app.",
         );
@@ -244,7 +315,7 @@ pub async fn callback(
         Ok(connection) => connection,
         Err(error) => {
             tracing::error!(%error, "keeping Simkl tokens failed");
-            return message(
+            return failed(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Something went wrong. Start again from your app.",
             );
@@ -260,92 +331,29 @@ pub async fn callback(
 fn authorization_error(error: AuthorizationError) -> Response {
     match error {
         AuthorizationError::Redirect(redirect) => see_other(&redirect.location()),
-        AuthorizationError::Direct(error) => message(StatusCode::BAD_REQUEST, &error.to_string()),
+        AuthorizationError::Direct(error) => failed(StatusCode::BAD_REQUEST, &error.to_string()),
     }
 }
 
-fn consent_page(
-    request: &ValidatedAuthorizationRequest,
-    client_name: Option<&str>,
-    key: &str,
-) -> String {
-    let redirect_host = url::Url::parse(&request.redirect_uri)
-        .ok()
-        .and_then(|url| url.host_str().map(str::to_owned))
-        .unwrap_or_else(|| request.redirect_uri.clone());
-    let client = client_name.unwrap_or(request.client_id.as_str());
-    let access = match request.scope.contains(WRITE_SCOPE) {
-        true => "read and change your Simkl watchlist, history and ratings",
-        false => "read your Simkl watchlist, history and ratings",
-    };
-    format!(
-        "<!DOCTYPE html><html><head><meta charset=\"utf-8\">\
-         <meta name=\"viewport\" content=\"width=device-width\"><title>Connect to Simkl</title></head>\
-         <body><h1>Connect {client} to Simkl</h1>\
-         <p><strong>{client}</strong> wants to {access}.</p>\
-         <p>After you allow it, Simkl asks you to sign in, and you are sent back to <code>{host}</code>.</p>\
-         <form method=\"post\" action=\"/authorize\">\
-         <input type=\"hidden\" name=\"key\" value=\"{key}\">\
-         <button type=\"submit\" name=\"action\" value=\"allow\">Allow</button> \
-         <button type=\"submit\" name=\"action\" value=\"deny\">Deny</button>\
-         </form></body></html>",
-        client = escape(client),
-        access = access,
-        host = escape(&redirect_host),
-        key = escape(key),
-    )
-}
-
-fn escape(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
-}
-
 fn expired() -> Response {
-    message(
+    failed(
         StatusCode::BAD_REQUEST,
         "This sign-in has expired. Start again from your app.",
     )
 }
 
-fn message(status: StatusCode, text: &str) -> Response {
-    (
-        status,
-        Html(format!("<!DOCTYPE html><p>{}</p>", escape(text))),
-    )
-        .into_response()
+fn failed(status: StatusCode, text: &str) -> Response {
+    let page = MessagePage {
+        title: "sign-in failed",
+        text: text.to_owned(),
+    };
+    (status, page).into_response()
 }
 
 fn see_other(location: &str) -> Response {
-    match HeaderValue::from_str(location) {
-        Ok(location) => (StatusCode::SEE_OTHER, [(LOCATION, location)]).into_response(),
-        Err(_) => message(StatusCode::BAD_REQUEST, "Bad redirect."),
-    }
+    Redirect::to(location).into_response()
 }
 
 fn random_token() -> String {
     URL_SAFE_NO_PAD.encode(rand::random::<[u8; 32]>())
-}
-
-fn browser_binding(headers: &HeaderMap) -> Option<String> {
-    headers
-        .get_all(COOKIE)
-        .iter()
-        .filter_map(|value| value.to_str().ok())
-        .flat_map(|cookies| cookies.split(';'))
-        .find_map(|cookie| cookie.trim().strip_prefix(COOKIE_NAME)?.strip_prefix('='))
-        .filter(|value| !value.is_empty())
-        .map(str::to_owned)
-}
-
-fn binding_cookie(binding: &str, login: &Login) -> HeaderValue {
-    let secure = if login.secure { "; Secure" } else { "" };
-    HeaderValue::from_str(&format!(
-        "{COOKIE_NAME}={binding}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}{secure}",
-        login.sign_in_ttl.as_secs()
-    ))
-    .unwrap()
 }
