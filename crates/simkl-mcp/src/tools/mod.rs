@@ -26,7 +26,7 @@ use crate::server::SimklServer;
 
 /// Every tool, merged from each module's router.
 pub fn router() -> ToolRouter<SimklServer> {
-    SimklServer::catalog_router() + SimklServer::library_router()
+    SimklServer::catalog_router() + SimklServer::library_router() + SimklServer::write_router()
 }
 
 /// The signed-in user making this request. `serve` authenticates the bearer
@@ -75,6 +75,9 @@ enum ToolError {
     /// Every title shown must link to simkl.com, which needs its Simkl ID.
     #[error("Simkl sent {title:?} without a Simkl ID")]
     NoSimklId { title: String },
+    /// Simkl matched none of a write's titles; `summary` lists what it echoed.
+    #[error("{summary}")]
+    NothingApplied { summary: String },
 }
 
 impl IntoContents for ToolError {
