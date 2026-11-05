@@ -7,14 +7,16 @@
 //! returns the same refresh token with its 180-day window moved, and kills the
 //! previous access token at once; [`Vault`](super::vault) is the only caller.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
 use jiff::{SignedDuration, Timestamp};
 use oauth2::basic::BasicClient;
 use oauth2::{
-    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, EndpointNotSet, EndpointSet,
-    ErrorResponseType, HttpRequest, HttpResponse, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl,
-    RefreshToken, RequestTokenError, RevocationUrl, Scope, StandardErrorResponse,
+    AsyncHttpClient, AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, EndpointNotSet,
+    EndpointSet, ErrorResponseType, HttpRequest, HttpResponse, PkceCodeChallenge, PkceCodeVerifier,
+    RedirectUrl, RefreshToken, RequestTokenError, RevocationUrl, Scope, StandardErrorResponse,
     StandardRevocableToken, TokenResponse, TokenUrl,
 };
 use secrecy::{ExposeSecret, SecretString};
@@ -33,18 +35,21 @@ type SimklClient =
     BasicClient<EndpointSet, EndpointNotSet, EndpointNotSet, EndpointSet, EndpointSet>;
 
 /// Our Simkl app: its credentials, Simkl's endpoints and our callback URL.
+#[derive(Clone)]
 pub struct Upstream {
     oauth: SimklClient,
-    http: reqwest::Client,
+    http: Http,
 }
 
 impl Upstream {
     /// `redirect_uri` must be registered with Simkl exactly as given; for a
-    /// loopback address it must include the port in use.
+    /// loopback address it must include the port in use. `timeout` bounds
+    /// each token and revoke request.
     pub fn new(
         client_id: String,
         client_secret: SecretString,
         redirect_uri: Url,
+        timeout: Duration,
     ) -> Result<Upstream, reqwest::Error> {
         let oauth = BasicClient::new(ClientId::new(client_id))
             .set_client_secret(ClientSecret::new(client_secret.expose_secret().to_owned()))
@@ -61,9 +66,12 @@ impl Upstream {
                 env!("CARGO_PKG_VERSION")
             ))
             .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_secs(30))
+            .timeout(timeout)
             .build()?;
-        Ok(Upstream { oauth, http })
+        Ok(Upstream {
+            oauth,
+            http: Http(http),
+        })
     }
 
     /// Where to send the user, and what the callback must match.
@@ -89,7 +97,7 @@ impl Upstream {
             .oauth
             .exchange_code(code)
             .set_pkce_verifier(pending.verifier)
-            .request_async(&|request| send(&self.http, request))
+            .request_async(&self.http)
             .await
             .map_err(token_error)?;
         SimklGrant::from_response(&response, Timestamp::now())
@@ -101,7 +109,7 @@ impl Upstream {
         let response = self
             .oauth
             .exchange_refresh_token(&RefreshToken::new(refresh_token.expose_secret().to_owned()))
-            .request_async(&|request| send(&self.http, request))
+            .request_async(&self.http)
             .await
             .map_err(token_error)?;
         SimklGrant::from_response(&response, Timestamp::now())
@@ -115,7 +123,7 @@ impl Upstream {
                 refresh_token.expose_secret().to_owned(),
             )))
             .unwrap()
-            .request_async(&|request| send(&self.http, request))
+            .request_async(&self.http)
             .await
             .map_err(token_error)
     }
@@ -158,6 +166,13 @@ impl SimklScope {
 pub struct PendingSignIn {
     state: CsrfToken,
     verifier: PkceCodeVerifier,
+}
+
+impl PendingSignIn {
+    /// The `state` Simkl will echo on the callback, which finds this sign-in.
+    pub fn state(&self) -> &str {
+        self.state.secret()
+    }
 }
 
 /// The query of Simkl's redirect back to us. `iss` is always present
@@ -263,6 +278,22 @@ fn token_error<T: ErrorResponseType + AsRef<str> + std::fmt::Display>(
 }
 
 /// `oauth2`'s HTTP client over our `reqwest`.
+/// Our `reqwest` client as `oauth2`'s HTTP client. A named type rather than a
+/// closure, with a boxed `Send` future: with a closure, the token requests'
+/// futures cannot be proven `Send` for every lifetime, which axum handlers and
+/// the sweeper need.
+#[derive(Clone)]
+struct Http(reqwest::Client);
+
+impl<'c> AsyncHttpClient<'c> for Http {
+    type Error = reqwest::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<HttpResponse, reqwest::Error>> + Send + 'c>>;
+
+    fn call(&'c self, request: HttpRequest) -> Self::Future {
+        Box::pin(send(&self.0, request))
+    }
+}
+
 async fn send(
     http: &reqwest::Client,
     request: HttpRequest,

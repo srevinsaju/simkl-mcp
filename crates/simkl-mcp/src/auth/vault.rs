@@ -20,7 +20,6 @@ use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use jiff::{SignedDuration, Timestamp};
 use moka::future::Cache;
 use secrecy::{ExposeSecret, SecretString};
-use serde::Deserialize;
 use simkl_api::AccessToken;
 use sqlx::SqlitePool;
 use tokio::sync::Mutex;
@@ -38,10 +37,9 @@ const KEY_ID: i64 = 1;
 /// (https://api.simkl.org/api-reference/auth-v2), not a setting.
 const REFRESH_WINDOW: SignedDuration = SignedDuration::from_hours(180 * 24);
 
-/// How the vault refreshes and prunes connections: the `auth` section of the
-/// server's configuration. Durations take jiff's friendly form, such as `24h`.
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
+/// How the vault refreshes and prunes connections, set from the `auth`
+/// section of the server's configuration.
+#[derive(Debug, Clone, Copy)]
 pub struct VaultConfig {
     /// Refresh an access token used this close to its 7-day expiry.
     pub refresh_margin: SignedDuration,
@@ -87,6 +85,11 @@ impl ConnectionId {
             "conn_{}",
             URL_SAFE_NO_PAD.encode(rand::random::<[u8; 16]>())
         ))
+    }
+
+    /// The connection an authorization-server token names as its subject.
+    pub fn from_subject(subject: &str) -> ConnectionId {
+        ConnectionId(subject.to_owned())
     }
 
     pub fn as_str(&self) -> &str {
@@ -155,22 +158,6 @@ impl Vault {
         let _refreshing = lock.lock().await;
         let tokens = self.read(id).await?;
         if tokens.is_fresh(Timestamp::now(), self.config.refresh_margin) {
-            return Ok(tokens.access_token);
-        }
-        self.refresh(id, &tokens).await
-    }
-
-    /// A new access token after Simkl rejected `rejected`, unless another
-    /// caller already replaced it.
-    pub async fn refresh_after_rejection(
-        &self,
-        id: &ConnectionId,
-        rejected: &AccessToken,
-    ) -> Result<AccessToken, VaultError> {
-        let lock = self.lock(id).await;
-        let _refreshing = lock.lock().await;
-        let tokens = self.read(id).await?;
-        if tokens.access_token.expose_secret() != rejected.expose_secret() {
             return Ok(tokens.access_token);
         }
         self.refresh(id, &tokens).await

@@ -12,6 +12,8 @@ mod library;
 mod title;
 mod write;
 
+use std::collections::HashSet;
+
 use axum::http::request::Parts;
 use rmcp::ErrorData;
 use rmcp::handler::server::common::{AsRequestContext, FromContextPart};
@@ -27,6 +29,16 @@ use crate::server::SimklServer;
 /// Every tool, merged from each module's router.
 pub fn router() -> ToolRouter<SimklServer> {
     SimklServer::catalog_router() + SimklServer::library_router() + SimklServer::write_router()
+}
+
+/// The tools whose `readOnlyHint` is not true: calling one needs `media:write`.
+pub fn write_tool_names() -> HashSet<String> {
+    router()
+        .list_all()
+        .into_iter()
+        .filter(|tool| tool.annotations.as_ref().and_then(|a| a.read_only_hint) != Some(true))
+        .map(|tool| tool.name.into_owned())
+        .collect()
 }
 
 /// The signed-in user making this request. `serve` authenticates the bearer

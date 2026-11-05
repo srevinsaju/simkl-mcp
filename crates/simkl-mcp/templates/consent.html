@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}connect to simkl{% endblock %}
+{% block window %}oauth-authorize{% endblock %}
+
+{% block content %}
+<h1>connect to simkl</h1>
+<p class="subtitle">{{ client }} wants to {% if write %}read and change{% else %}read{% endif %} your simkl watchlist, history and ratings.</p>
+
+<div class="client-info">
+    <p><strong>client:</strong> <code>{{ client }}</code></p>
+    <p><strong>redirects to:</strong> <code>{{ redirect_host }}</code></p>
+    <p><strong>access:</strong> <code>{% if write %}read, write{% else %}read{% endif %}</code></p>
+</div>
+
+<div class="info-box">after you allow it, simkl asks you to sign in, then sends you back to {{ redirect_host }}.</div>
+
+<form method="post" action="/authorize">
+    <input type="hidden" name="key" value="{{ key }}">
+    <div class="actions">
+        <button type="submit" name="action" value="allow">allow</button>
+        <button class="secondary" type="submit" name="action" value="deny">deny</button>
+    </div>
+</form>
+{% endblock %}
