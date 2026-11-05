@@ -17,6 +17,10 @@ mod login;
     )
 )]
 mod store;
+#[expect(
+    dead_code,
+    reason = "used once `serve` mounts the authorization server"
+)]
 mod upstream;
 mod vault;
 
