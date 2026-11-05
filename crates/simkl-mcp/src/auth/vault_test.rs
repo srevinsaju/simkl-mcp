@@ -6,7 +6,7 @@ use jiff::{SignedDuration, Timestamp};
 use secrecy::{ExposeSecret, SecretString};
 use sqlx::SqlitePool;
 
-use super::{ConnectionId, VaultError, VaultKey, nanos, open, prunable, seal};
+use super::{ConnectionId, VaultConfig, VaultError, VaultKey, nanos, open, prunable, seal};
 use crate::auth::open_database;
 
 #[test]
@@ -78,7 +78,7 @@ async fn prunes_connections_without_tokens_or_past_their_refresh_window() {
     .await
     .unwrap();
 
-    let pruned: BTreeSet<String> = prunable(&pool, now)
+    let pruned: BTreeSet<String> = prunable(&pool, now, VaultConfig::default().prune_grace)
         .await
         .unwrap()
         .into_iter()

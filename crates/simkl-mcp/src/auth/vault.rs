@@ -6,7 +6,7 @@
 //! token at once, so refreshes of one connection are serialised by an
 //! in-process lock (one replica), and never run inside a database
 //! transaction (the store shares the one connection). Tokens are refreshed
-//! lazily, when used within a day of expiry. The schema is
+//! lazily, when used within `refresh_margin` of expiry. The schema is
 //! `migrations/0002_connections.sql`.
 
 use std::str::FromStr;
@@ -20,21 +20,45 @@ use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use jiff::{SignedDuration, Timestamp};
 use moka::future::Cache;
 use secrecy::{ExposeSecret, SecretString};
+use serde::Deserialize;
 use simkl_api::AccessToken;
 use sqlx::SqlitePool;
 use tokio::sync::Mutex;
 
 use crate::auth::upstream::{SimklGrant, Upstream, UpstreamError};
 
-/// The only vault key until keys rotate; rotating signs everyone out.
+/// Which key sealed a row. It is stored in the row's `key_id` column and bound
+/// into the row's associated data. There is a single vault key, so it is
+/// always 1. The column exists so a key ring can come later without a
+/// migration: each key gets its own id, and rows still sealed under an old
+/// one are re-sealed under the current one. Until then, rotating the key
+/// leaves every row `Unsealable`, which signs everyone out.
 const KEY_ID: i64 = 1;
-/// Refresh an access token used this close to its 7-day expiry.
-const REFRESH_MARGIN: SignedDuration = SignedDuration::from_hours(24);
-/// A refresh token lives this long after its last use.
+/// A refresh token lives this long after its last use. This is Simkl's limit
+/// (https://api.simkl.org/api-reference/auth-v2), not a setting.
 const REFRESH_WINDOW: SignedDuration = SignedDuration::from_hours(180 * 24);
-/// How long a new connection may go without tokens: from the Simkl callback
-/// to the client redeeming its authorization code (one minute in `oauth-as`).
-const PRUNE_GRACE: SignedDuration = SignedDuration::from_mins(10);
+
+/// How the vault refreshes and prunes connections: the `auth` section of the
+/// server's configuration. Durations take jiff's friendly form, such as `24h`.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct VaultConfig {
+    /// Refresh an access token used this close to its 7-day expiry.
+    pub refresh_margin: SignedDuration,
+    /// How long a new connection may go without tokens: from the Simkl
+    /// callback to the client redeeming its authorization code (one minute in
+    /// `oauth-as`).
+    pub prune_grace: SignedDuration,
+}
+
+impl Default for VaultConfig {
+    fn default() -> VaultConfig {
+        VaultConfig {
+            refresh_margin: SignedDuration::from_hours(24),
+            prune_grace: SignedDuration::from_mins(10),
+        }
+    }
+}
 
 /// The AES-256-GCM key Simkl tokens are sealed with, parsed from 32 bytes in
 /// standard base64 (`SIMKL_MCP_VAULT_KEY`).
@@ -75,6 +99,7 @@ pub struct Vault {
     pool: SqlitePool,
     key: VaultKey,
     upstream: Upstream,
+    config: VaultConfig,
     /// One lock per connection being refreshed. Idle locks are dropped; a
     /// refresh holds its lock for seconds, far less than the idle time.
     refreshing: Cache<ConnectionId, Arc<Mutex<()>>>,
@@ -82,11 +107,12 @@ pub struct Vault {
 
 impl Vault {
     /// The vault over the pool `auth::open_database` returned.
-    pub fn new(pool: SqlitePool, key: VaultKey, upstream: Upstream) -> Vault {
+    pub fn new(pool: SqlitePool, key: VaultKey, upstream: Upstream, config: VaultConfig) -> Vault {
         Vault {
             pool,
             key,
             upstream,
+            config,
             refreshing: Cache::builder()
                 .time_to_idle(Duration::from_secs(10 * 60))
                 .build(),
@@ -118,17 +144,17 @@ impl Vault {
         Ok(id)
     }
 
-    /// The connection's access token, refreshed first if it expires within a
-    /// day.
+    /// The connection's access token, refreshed first if it expires within
+    /// `refresh_margin`.
     pub async fn access_token(&self, id: &ConnectionId) -> Result<AccessToken, VaultError> {
         let tokens = self.read(id).await?;
-        if tokens.is_fresh(Timestamp::now()) {
+        if tokens.is_fresh(Timestamp::now(), self.config.refresh_margin) {
             return Ok(tokens.access_token);
         }
         let lock = self.lock(id).await;
         let _refreshing = lock.lock().await;
         let tokens = self.read(id).await?;
-        if tokens.is_fresh(Timestamp::now()) {
+        if tokens.is_fresh(Timestamp::now(), self.config.refresh_margin) {
             return Ok(tokens.access_token);
         }
         self.refresh(id, &tokens).await
@@ -156,7 +182,7 @@ impl Vault {
     /// Simkl fails is retried on the next prune. Returns how many ended.
     pub async fn prune(&self, now: Timestamp) -> Result<u64, VaultError> {
         let mut ended = 0;
-        for connection in prunable(&self.pool, now).await? {
+        for connection in prunable(&self.pool, now, self.config.prune_grace).await? {
             if connection.refresh_expires_at > now {
                 let (_, refresh_token) = open(&self.key, &connection.id, &connection.sealed)?;
                 if let Err(error) = self.upstream.revoke(&refresh_token).await {
@@ -261,8 +287,8 @@ struct Tokens {
 }
 
 impl Tokens {
-    fn is_fresh(&self, now: Timestamp) -> bool {
-        self.access_expires_at - REFRESH_MARGIN > now
+    fn is_fresh(&self, now: Timestamp, margin: SignedDuration) -> bool {
+        self.access_expires_at - margin > now
     }
 }
 
@@ -275,7 +301,11 @@ struct Prunable {
 
 /// Connections past the grace period that no access or refresh token names
 /// as its subject, and connections whose refresh token has expired.
-async fn prunable(pool: &SqlitePool, now: Timestamp) -> Result<Vec<Prunable>, VaultError> {
+async fn prunable(
+    pool: &SqlitePool,
+    now: Timestamp,
+    grace: SignedDuration,
+) -> Result<Vec<Prunable>, VaultError> {
     let rows: Vec<(String, i64, Vec<u8>)> = sqlx::query_as(
         "SELECT id, refresh_expires_at_ns, sealed FROM connections c
          WHERE refresh_expires_at_ns <= ?1
@@ -284,7 +314,7 @@ async fn prunable(pool: &SqlitePool, now: Timestamp) -> Result<Vec<Prunable>, Va
                 AND NOT EXISTS (SELECT 1 FROM refresh_tokens WHERE subject = c.id))",
     )
     .bind(nanos(now))
-    .bind(nanos(now - PRUNE_GRACE))
+    .bind(nanos(now - grace))
     .fetch_all(pool)
     .await?;
     Ok(rows
