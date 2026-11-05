@@ -89,6 +89,11 @@ impl ConnectionId {
         ))
     }
 
+    /// The connection an authorization-server token names as its subject.
+    pub fn from_subject(subject: &str) -> ConnectionId {
+        ConnectionId(subject.to_owned())
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -155,22 +160,6 @@ impl Vault {
         let _refreshing = lock.lock().await;
         let tokens = self.read(id).await?;
         if tokens.is_fresh(Timestamp::now(), self.config.refresh_margin) {
-            return Ok(tokens.access_token);
-        }
-        self.refresh(id, &tokens).await
-    }
-
-    /// A new access token after Simkl rejected `rejected`, unless another
-    /// caller already replaced it.
-    pub async fn refresh_after_rejection(
-        &self,
-        id: &ConnectionId,
-        rejected: &AccessToken,
-    ) -> Result<AccessToken, VaultError> {
-        let lock = self.lock(id).await;
-        let _refreshing = lock.lock().await;
-        let tokens = self.read(id).await?;
-        if tokens.access_token.expose_secret() != rejected.expose_secret() {
             return Ok(tokens.access_token);
         }
         self.refresh(id, &tokens).await

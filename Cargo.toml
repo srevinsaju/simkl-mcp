@@ -19,6 +19,7 @@ backon = { version = "1", default-features = false, features = ["std", "tokio-sl
 bon = "3"
 clap = { version = "4", features = ["derive", "env"] }
 derive_more = { version = "2", features = ["as_ref", "display", "from", "into"] }
+figment = { version = "0.10", features = ["env", "toml"] }
 garde = { version = "0.23", features = ["derive", "regex"] }
 governor = "0.10"
 indexmap = { version = "2", features = ["serde"] }
