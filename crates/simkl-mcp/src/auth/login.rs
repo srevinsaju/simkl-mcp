@@ -357,3 +357,7 @@ fn see_other(location: &str) -> Response {
 fn random_token() -> String {
     URL_SAFE_NO_PAD.encode(rand::random::<[u8; 32]>())
 }
+
+#[cfg(test)]
+#[path = "login_test.rs"]
+mod tests;

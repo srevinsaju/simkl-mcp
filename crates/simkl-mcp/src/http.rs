@@ -24,6 +24,7 @@ use axum::middleware::{Next, from_fn_with_state};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::get;
 use oauth_as::resource_metadata::{ProtectedResourceConfig, ProtectedResourceMetadata};
+use oauth_as::scope::ScopeSet;
 use rmcp::transport::streamable_http_server::session::never::NeverSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
 use serde::Deserialize;
@@ -138,7 +139,7 @@ async fn authenticate(State(mcp): State<Mcp>, request: Request, next: Next) -> R
     let Ok(body) = to_bytes(body, mcp.max_request_bytes).await else {
         return StatusCode::PAYLOAD_TOO_LARGE.into_response();
     };
-    if !issued.scope.contains(WRITE_SCOPE) && calls_write_tool(&body, &mcp.write_tools) {
+    if needs_step_up(&issued.scope, &body, &mcp.write_tools) {
         return mcp.insufficient_scope();
     }
 
@@ -168,6 +169,12 @@ fn bearer(request: &Request) -> Option<String> {
     scheme
         .eq_ignore_ascii_case("bearer")
         .then(|| token.trim().to_owned())
+}
+
+/// Whether a token with `scope` must step up to `media:write` before this
+/// JSON-RPC body runs.
+fn needs_step_up(scope: &ScopeSet, body: &Bytes, write_tools: &HashSet<String>) -> bool {
+    !scope.contains(WRITE_SCOPE) && calls_write_tool(body, write_tools)
 }
 
 /// Whether a JSON-RPC body (one message or a batch) calls a write tool.
@@ -220,3 +227,7 @@ impl Mcp {
         response
     }
 }
+
+#[cfg(test)]
+#[path = "http_test.rs"]
+mod tests;
