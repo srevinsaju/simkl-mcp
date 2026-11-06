@@ -17,8 +17,8 @@ use rmcp::{tool, tool_router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use simkl_api::library::{
-    EpisodeNumber, HistoryItem, MarkWatched, Rate, RatingItem, SetStatus, Status, StatusChange,
-    Target, TitleRef, UnmarkWatched, Unrate, WriteOutcome,
+    EpisodeNumber, HistoryItem, MarkWatched, Memo, Rate, RatingItem, SetStatus, Status,
+    StatusChange, Target, TitleRef, UnmarkWatched, Unrate, WriteOutcome,
 };
 use simkl_api::media::{Ids, Kind};
 
@@ -85,6 +85,10 @@ impl SimklServer {
                     .title(item.title.into_ref()?)
                     .target(target(item.seasons, item.episodes)?)
                     .maybe_watched_at(item.watched_at)
+                    .maybe_memo(item.memo.map(|memo| Memo {
+                        text: memo.text,
+                        private: !memo.public,
+                    }))
                     .build())
             })
             .collect::<Result<Vec<_>, ToolError>>()?;
@@ -282,6 +286,18 @@ struct WatchItem {
     /// When it was watched, RFC 3339. Default now.
     #[schemars(with = "Option<String>")]
     watched_at: Option<Timestamp>,
+    /// A note on the title, up to 140 characters.
+    memo: Option<MemoInput>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct MemoInput {
+    text: String,
+    /// Show it on the user's public Simkl profile and in the activity feed.
+    /// Default false: only the user sees it.
+    #[serde(default)]
+    public: bool,
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Validate)]
