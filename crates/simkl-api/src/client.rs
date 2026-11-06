@@ -54,6 +54,19 @@ pub trait Endpoint: Serialize + Validate<Context = ()> + Sync {
     fn parse(&self, reply: Reply) -> Result<Self::Response>;
 }
 
+/// How much Simkl returns per item: the `extended` query value.
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Extended {
+    Full,
+}
+
+/// A Simkl query flag: `yes` when set. Pair with
+/// `skip_serializing_if = "Not::not"` so an unset flag is left out.
+pub fn yes_flag<S: serde::Serializer>(_set: &bool, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_str("yes")
+}
+
 /// How an endpoint is sent. See the [module docs](self).
 pub trait Access: Send + Sync + 'static {
     const RULES: Rules;

@@ -447,7 +447,6 @@ struct EpisodeItem {
     aired: bool,
     #[schemars(with = "Option<String>")]
     date: Option<Timestamp>,
-    /// Whether the user watched it.
     watched: bool,
 }
 

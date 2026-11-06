@@ -11,6 +11,7 @@
 //! [`UserClient::library`] is the only way in. The snapshot is a cache owned
 //! by the client's per-user state; losing it costs one full read.
 
+use std::ops::Not;
 use std::sync::Arc;
 
 use garde::Validate;
@@ -18,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use tokio::sync::Mutex;
 
-use crate::client::UserClient;
+use crate::client::{Extended, UserClient, yes_flag};
 use crate::error::Result;
 use crate::library::Library;
 
@@ -122,17 +123,18 @@ endpoint!(GetActivities: Read => Activities, path = |self| "/sync/activities");
 struct GetLibrary {
     #[serde(rename = "date_from")]
     changed_since: Option<String>,
-    next_watch_info: &'static str,
+    #[serde(serialize_with = "yes_flag", skip_serializing_if = "Not::not")]
+    next_watch_info: bool,
     /// `full` adds each entry's watched episodes.
-    extended: &'static str,
+    extended: Extended,
 }
 
 impl Default for GetLibrary {
     fn default() -> Self {
         Self {
             changed_since: None,
-            next_watch_info: "yes",
-            extended: "full",
+            next_watch_info: true,
+            extended: Extended::Full,
         }
     }
 }

@@ -25,7 +25,7 @@ use serde_with::{
 };
 use strum::{Display as StrumDisplay, EnumString};
 
-use crate::client::Reply;
+use crate::client::{Extended, Reply};
 use crate::error::{Error, Result};
 
 /// Simkl's own ID for a title or episode. The only stable identifier.
@@ -435,8 +435,8 @@ pub struct Search {
     #[builder(default = 10)]
     #[garde(range(min = 1, max = 50))]
     pub limit: u32,
-    #[builder(skip = "full")]
-    extended: &'static str,
+    #[builder(skip = Extended::Full)]
+    extended: Extended,
 }
 
 endpoint!(Search: Read => Page<SearchResult>,
