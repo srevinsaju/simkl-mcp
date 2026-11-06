@@ -327,6 +327,22 @@ pub struct HistoryItem {
     /// when removing.
     #[garde(skip)]
     pub watched_at: Option<Timestamp>,
+    /// A note on the title. Ignored when removing.
+    #[garde(dive)]
+    pub memo: Option<Memo>,
+}
+
+/// A note on a title in the library. Only history writes keep one: Simkl
+/// accepts but drops a memo sent to `/sync/add-to-list` (see `POST
+/// /sync/history` in `openapi.json`).
+#[derive(Debug, Clone, Validate)]
+pub struct Memo {
+    #[garde(length(chars, min = 1, max = 140))]
+    pub text: String,
+    /// Shown only to the user. A public memo appears on their Simkl profile
+    /// and in the activity feed.
+    #[garde(skip)]
+    pub private: bool,
 }
 
 #[derive(Debug, Clone, Validate)]
@@ -385,6 +401,7 @@ writes! {
         |it| (it.title.kind, WireItem {
             watched_at: it.watched_at,
             seasons: it.target.seasons(),
+            memo: it.memo.map(|memo| WireMemo { text: memo.text, is_private: memo.private }),
             ..WireItem::from(it.title)
         });
     /// Remove watches. A whole title is removed from the library, rating
@@ -475,6 +492,13 @@ struct WireItem {
     watched_at: Option<Timestamp>,
     rating: Option<u8>,
     seasons: Option<Vec<WireSeason>>,
+    memo: Option<WireMemo>,
+}
+
+#[derive(Serialize)]
+struct WireMemo {
+    text: String,
+    is_private: bool,
 }
 
 impl From<TitleRef> for WireItem {
