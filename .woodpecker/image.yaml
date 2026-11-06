@@ -1,0 +1,11 @@
+# Builds the container image; pushes to main publish it.
+when:
+  - event: push
+    branch: main
+  - event: pull_request
+
+steps:
+  - name: image
+    image: cr.hs.xwx.cat/woodpecker-buildkit:main-3-a477e38
+    settings:
+      repo: simkl-mcp
