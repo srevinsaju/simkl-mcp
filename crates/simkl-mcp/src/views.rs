@@ -1,5 +1,5 @@
-//! MCP Apps views (`io.modelcontextprotocol/ui`): `ui://simkl/titles` and
-//! `ui://simkl/title`, served as `text/html;profile=mcp-app` from the bundle
+//! MCP Apps views (`io.modelcontextprotocol/ui`): `ui://simkl/titles`,
+//! `ui://simkl/title` and `ui://simkl/stats`, served as `text/html;profile=mcp-app` from the bundle
 //! built in `ui/`.
 //!
 //! A tool shows a view by carrying [`View::tool_meta`]. Hosts without MCP Apps
@@ -21,15 +21,18 @@ pub enum View {
     Titles,
     /// One title with its episodes.
     Title,
+    /// Watching stats by kind and status.
+    Stats,
 }
 
 impl View {
-    const ALL: [View; 2] = [View::Titles, View::Title];
+    const ALL: [View; 3] = [View::Titles, View::Title, View::Stats];
 
     fn uri(self) -> &'static str {
         match self {
             View::Titles => "ui://simkl/titles",
             View::Title => "ui://simkl/title",
+            View::Stats => "ui://simkl/stats",
         }
     }
 
@@ -37,6 +40,7 @@ impl View {
         match self {
             View::Titles => "titles",
             View::Title => "title",
+            View::Stats => "stats",
         }
     }
 
@@ -45,6 +49,7 @@ impl View {
         match self {
             View::Titles => include_str!("../../../ui/dist/titles.html"),
             View::Title => include_str!("../../../ui/dist/title.html"),
+            View::Stats => include_str!("../../../ui/dist/stats.html"),
         }
     }
 

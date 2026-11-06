@@ -4,7 +4,7 @@
   "type": "module",
   "description": "MCP Apps views for simkl-mcp, built into single-file HTML that the server embeds",
   "scripts": {
-    "build": "INPUT=titles vite build && INPUT=title vite build",
+    "build": "INPUT=titles vite build && INPUT=title vite build && INPUT=stats vite build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

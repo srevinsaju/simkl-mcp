@@ -130,6 +130,7 @@ impl SimklServer {
 
     /// The user's watching stats: time spent and counts by status.
     #[tool(
+        meta = View::Stats.tool_meta(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
