@@ -122,6 +122,7 @@ impl SimklServer {
 
     /// Episodes of a show or anime, 100 per page, specials last.
     #[tool(
+        meta = View::Title.tool_meta(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
