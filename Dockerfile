@@ -1,12 +1,14 @@
 # The simkl-mcp server (crates/simkl-mcp). The TypeScript worker in src/
 # deploys to Cloudflare with wrangler and does not use this image.
 
-# The ui:// views: single-file HTML that the server embeds.
+# The ui:// views: single-file HTML that the server embeds. They import
+# the sign-in pages' tokens.css from the crate's templates.
 FROM docker.io/oven/bun:1.4.2 AS views
 WORKDIR /src/ui
 COPY ui/package.json ui/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY ui ./
+COPY crates/simkl-mcp/templates /src/crates/simkl-mcp/templates
 RUN bun run build
 
 FROM docker.io/library/rust:1.98-bookworm AS build

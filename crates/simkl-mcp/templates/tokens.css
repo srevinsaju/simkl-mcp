@@ -1,0 +1,63 @@
+/* Design tokens shared by the sign-in pages (base.html includes this file)
+   and the ui:// views (ui/src/style.css imports it).
+
+   Names follow the MCP Apps host style variables
+   (https://github.com/modelcontextprotocol/ext-apps, McpUiStyleVariableKey).
+   Inside Claude the host sets them on the root element, which overrides the
+   values here; the sign-in pages open in a plain browser and use these.
+   --accent and --accent-text are ours: the host has no brand color. */
+
+:root {
+    --color-background-primary: #ffffff;
+    --color-background-secondary: #f5f6f7;
+    --color-background-tertiary: #eceef0;
+    --color-text-primary: #1f2428;
+    --color-text-secondary: #5f6870;
+    --color-text-success: #2f7d4f;
+    --color-text-warning: #a15c07;
+    --color-text-danger: #b3261e;
+    --color-border-primary: #e2e5e8;
+    --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "Fira Code", ui-monospace, "SF Mono", Menlo, monospace;
+    --border-radius-sm: 6px;
+    --border-radius-md: 10px;
+    --border-radius-lg: 14px;
+    --shadow-md: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.06);
+
+    --accent: #2c3e50;
+    --accent-text: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --color-background-primary: #262624;
+        --color-background-secondary: #1f1e1d;
+        --color-background-tertiary: #30302e;
+        --color-text-primary: #ecebe6;
+        --color-text-secondary: #a6a49c;
+        --color-text-success: #7cc49a;
+        --color-text-warning: #e2a85a;
+        --color-text-danger: #f2948c;
+        --color-border-primary: #3a3936;
+        --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.3);
+        --accent: #a9c1d9;
+        --accent-text: #14212d;
+        color-scheme: dark;
+    }
+}
+
+:root[data-theme="dark"] {
+    --color-background-primary: #262624;
+    --color-background-secondary: #1f1e1d;
+    --color-background-tertiary: #30302e;
+    --color-text-primary: #ecebe6;
+    --color-text-secondary: #a6a49c;
+    --color-text-success: #7cc49a;
+    --color-text-warning: #e2a85a;
+    --color-text-danger: #f2948c;
+    --color-border-primary: #3a3936;
+    --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.3);
+    --accent: #a9c1d9;
+    --accent-text: #14212d;
+    color-scheme: dark;
+}

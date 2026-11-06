@@ -164,6 +164,17 @@ struct ConsentPage {
     key: String,
 }
 
+impl ConsentPage {
+    /// The client's tile on the page: the first letter of its name.
+    fn client_initial(&self) -> String {
+        self.client
+            .chars()
+            .take(1)
+            .flat_map(char::to_uppercase)
+            .collect()
+    }
+}
+
 /// `templates/message.html`: a sign-in that cannot go on.
 #[derive(Template, WebTemplate)]
 #[template(path = "message.html")]
@@ -344,7 +355,7 @@ fn expired() -> Response {
 
 fn failed(status: StatusCode, text: &str) -> Response {
     let page = MessagePage {
-        title: "sign-in failed",
+        title: "Sign-in failed",
         text: text.to_owned(),
     };
     (status, page).into_response()
