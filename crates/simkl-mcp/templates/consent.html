@@ -1,25 +1,31 @@
 {% extends "base.html" %}
 
-{% block title %}connect to simkl{% endblock %}
-{% block window %}oauth-authorize{% endblock %}
+{% block title %}Connect to Simkl{% endblock %}
 
 {% block content %}
-<h1>connect to simkl</h1>
-<p class="subtitle">{{ client }} wants to {% if write %}read and change{% else %}read{% endif %} your simkl watchlist, history and ratings.</p>
-
-<div class="client-info">
-    <p><strong>client:</strong> <code>{{ client }}</code></p>
-    <p><strong>redirects to:</strong> <code>{{ redirect_host }}</code></p>
-    <p><strong>access:</strong> <code>{% if write %}read, write{% else %}read{% endif %}</code></p>
+<div class="apps" aria-hidden="true">
+    <div class="app">{{ self.client_initial() }}</div>
+    <div class="link"></div>
+    <div class="app simkl">S</div>
 </div>
 
-<div class="info-box">after you allow it, simkl asks you to sign in, then sends you back to {{ redirect_host }}.</div>
+<h1>{{ client }} wants to use your Simkl account</h1>
+<p class="sub">Simkl asks you to sign in next, then sends you back to {{ redirect_host }}.</p>
+
+<ul class="scopes">
+    <li><span class="icon read" aria-hidden="true">✓</span><span>Read your library<small>Watchlist, history, ratings and stats</small></span></li>
+    {% if write %}
+    <li><span class="icon write" aria-hidden="true">✎</span><span>Change your library<small>Mark watched, rate, set status</small></span></li>
+    {% endif %}
+</ul>
 
 <form method="post" action="/authorize">
     <input type="hidden" name="key" value="{{ key }}">
     <div class="actions">
-        <button type="submit" name="action" value="allow">allow</button>
-        <button class="secondary" type="submit" name="action" value="deny">deny</button>
+        <button class="secondary" type="submit" name="action" value="deny">Deny</button>
+        <button type="submit" name="action" value="allow">Continue to Simkl</button>
     </div>
 </form>
+
+<p class="foot">client {{ client }} · returns to {{ redirect_host }}</p>
 {% endblock %}
