@@ -23,12 +23,14 @@ use simkl_api::media::Kind;
 use crate::server::SimklServer;
 use crate::tools::title::TitleCard;
 use crate::tools::{Output, Page, ToolError, ToolResult, User, paginate, reply};
+use crate::views::View;
 
 #[tool_router(router = library_router, vis = "pub")]
 impl SimklServer {
     /// The user's library: what they watch, plan to watch, have finished or
     /// dropped, with progress and ratings.
     #[tool(
+        meta = View::Titles.tool_meta(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -55,6 +57,7 @@ impl SimklServer {
     /// What to watch next: the next episode of everything the user is
     /// watching, and paused movies and episodes. Most recent first.
     #[tool(
+        meta = View::Titles.tool_meta(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,

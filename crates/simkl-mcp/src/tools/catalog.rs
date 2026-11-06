@@ -13,13 +13,14 @@ use rmcp::{tool, tool_router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use simkl_api::data::{Calendar, Month, Period, Trending, TrendingGenres, TrendingInGenre};
-use simkl_api::library::Status;
+use simkl_api::library::{EpisodeNumber, Status};
 use simkl_api::media::{EpisodeType, GetEpisodes, GetTitle, Kind, Search};
 
 use crate::server::SimklServer;
 use crate::tools::library::LibraryItem;
 use crate::tools::title::{TitleCard, TitleInput};
 use crate::tools::{Output, Page, ToolError, ToolResult, User, paginate, reply};
+use crate::views::View;
 
 const ALL_KINDS: [Kind; 3] = [Kind::Movie, Kind::Show, Kind::Anime];
 
@@ -33,6 +34,7 @@ impl SimklServer {
     /// Search Simkl for movies, TV shows or anime by name. Without `kind`,
     /// searches all three.
     #[tool(
+        meta = View::Titles.tool_meta(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -67,6 +69,7 @@ impl SimklServer {
     /// A title's details, related titles, and where it sits in the user's
     /// library.
     #[tool(
+        meta = View::Title.tool_meta(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -134,11 +137,14 @@ impl SimklServer {
     ) -> ToolResult {
         input.validate()?;
         let (kind, id) = input.title.resolve(&user).await?;
-        let (title, episodes) = tokio::join!(
+        let (title, episodes, library) = tokio::join!(
             user.call(GetTitle { kind, id }),
             user.call(GetEpisodes { kind, id }),
+            user.library(),
         );
         let title = title?.ok_or(ToolError::NotFound { kind })?;
+        let library = library?;
+        let my_entry = library.get(title.kind, id);
         let episodes = episodes?
             .into_iter()
             .filter(|episode| {
@@ -153,6 +159,13 @@ impl SimklServer {
                 special: episode.episode_type == EpisodeType::Special,
                 aired: episode.aired,
                 date: episode.date,
+                watched: match (my_entry, episode.episode) {
+                    (Some(entry), Some(number)) => entry.has_watched(EpisodeNumber {
+                        season: episode.season.unwrap_or(1),
+                        episode: number,
+                    }),
+                    _ => false,
+                },
             })
             .collect();
         let (episodes, page) = paginate(episodes, input.page.unwrap_or(1), EPISODES_PER_PAGE);
@@ -165,6 +178,7 @@ impl SimklServer {
 
     /// The most watched titles on Simkl right now, optionally in one genre.
     #[tool(
+        meta = View::Titles.tool_meta(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -230,6 +244,7 @@ impl SimklServer {
     /// What airs or releases in a date range: by default, titles in the
     /// user's library over the next 7 days.
     #[tool(
+        meta = View::Titles.tool_meta(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -432,6 +447,8 @@ struct EpisodeItem {
     aired: bool,
     #[schemars(with = "Option<String>")]
     date: Option<Timestamp>,
+    /// Whether the user watched it.
+    watched: bool,
 }
 
 impl Output for GetEpisodesOutput {
@@ -453,7 +470,8 @@ impl Output for GetEpisodesOutput {
             };
             let title = episode.title.as_deref().unwrap_or("untitled");
             let aired = if episode.aired { "" } else { " (not aired)" };
-            write!(text, "\n{number} {title}{aired}").unwrap();
+            let watched = if episode.watched { " (watched)" } else { "" };
+            write!(text, "\n{number} {title}{aired}{watched}").unwrap();
         }
         text
     }

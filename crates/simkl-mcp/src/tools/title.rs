@@ -86,6 +86,15 @@ pub struct TitleCard {
     /// `tv`, `movie`, `ova`, ...: the format of an anime.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anime_type: Option<String>,
+    /// The poster image, when Simkl has one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub poster: Option<String>,
+}
+
+/// A poster's full URL, from the path fragment Simkl returns
+/// ([images](https://api.simkl.org/conventions/images)).
+fn poster_url(poster: &str) -> String {
+    format!("https://wsrv.nl/?url=https://simkl.in/posters/{poster}_m.webp&q=90")
 }
 
 impl TitleCard {
@@ -96,6 +105,7 @@ impl TitleCard {
         year: Option<Year>,
         en_title: Option<&str>,
         anime_type: Option<&AnimeType>,
+        poster: Option<&str>,
     ) -> Result<Self, ToolError> {
         let no_id = || ToolError::NoSimklId {
             title: title.to_owned(),
@@ -109,6 +119,7 @@ impl TitleCard {
             simkl_id: simkl_id.into(),
             url: ids.url(kind).ok_or_else(no_id)?,
             anime_type: anime_type.map(ToString::to_string),
+            poster: poster.map(poster_url),
         })
     }
 
@@ -123,6 +134,7 @@ impl TitleCard {
             *year,
             title.en_title.as_deref(),
             title.anime_type.as_ref(),
+            title.poster.as_deref(),
         )
     }
 
@@ -137,6 +149,7 @@ impl TitleCard {
             *year,
             result.title_en.as_deref(),
             result.anime_type.as_ref(),
+            result.poster.as_deref(),
         )
     }
 
@@ -151,6 +164,7 @@ impl TitleCard {
             *year,
             related.en_title.as_deref(),
             related.anime_type.as_ref(),
+            related.poster.as_deref(),
         )
     }
 
@@ -163,6 +177,7 @@ impl TitleCard {
             None,
             None,
             title.anime_type.as_ref(),
+            title.poster.as_deref(),
         )
     }
 
@@ -172,7 +187,15 @@ impl TitleCard {
         title: &EntryTitle,
         anime_type: Option<&AnimeType>,
     ) -> Result<Self, ToolError> {
-        Self::new(kind, &title.title, &title.ids, title.year, None, anime_type)
+        Self::new(
+            kind,
+            &title.title,
+            &title.ids,
+            title.year,
+            None,
+            anime_type,
+            title.poster.as_deref(),
+        )
     }
 
     /// One line of a text summary: `Title (2008) · show · https://simkl.com/...`.

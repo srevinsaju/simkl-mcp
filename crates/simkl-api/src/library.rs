@@ -155,6 +155,38 @@ pub struct LibraryEntry {
     pub total_episodes_count: Option<u32>,
     pub not_aired_episodes_count: Option<u32>,
     pub anime_type: Option<AnimeType>,
+    /// The episodes watched, by season; read through
+    /// [`has_watched`](Self::has_watched). Simkl leaves it out for movies and
+    /// for completed and dropped titles.
+    #[serde(default)]
+    seasons: Vec<WatchedSeason>,
+}
+
+impl LibraryEntry {
+    /// Whether the user watched this episode. Anime episodes are numbered
+    /// within season 1. A completed title without episode data counts as
+    /// fully watched.
+    pub fn has_watched(&self, number: EpisodeNumber) -> bool {
+        if self.seasons.is_empty() {
+            return self.status == Status::Completed;
+        }
+        self.seasons
+            .iter()
+            .filter(|season| season.number == number.season)
+            .flat_map(|season| &season.episodes)
+            .any(|episode| episode.number == number.episode)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct WatchedSeason {
+    number: u32,
+    episodes: Vec<WatchedEpisode>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct WatchedEpisode {
+    number: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]

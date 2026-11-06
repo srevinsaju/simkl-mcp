@@ -123,6 +123,8 @@ struct GetLibrary {
     #[serde(rename = "date_from")]
     changed_since: Option<String>,
     next_watch_info: &'static str,
+    /// `full` adds each entry's watched episodes.
+    extended: &'static str,
 }
 
 impl Default for GetLibrary {
@@ -130,6 +132,7 @@ impl Default for GetLibrary {
         Self {
             changed_since: None,
             next_watch_info: "yes",
+            extended: "full",
         }
     }
 }
