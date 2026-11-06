@@ -2,5 +2,90 @@
 //! `ui://simkl/title`, served as `text/html;profile=mcp-app` from the bundle
 //! built in `ui/`.
 //!
-//! Tools always carry `_meta.ui`; hosts without MCP Apps ignore it, so every
-//! tool's text content must stand on its own.
+//! A tool shows a view by carrying [`View::tool_meta`]. Hosts without MCP Apps
+//! ignore it, so every tool's text content must stand on its own.
+
+use rmcp::model::{MetaObject, ReadResourceResult, Resource, ResourceContents};
+use serde_json::json;
+
+/// The MIME type MCP Apps hosts render
+/// ([spec](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)).
+const MIME_TYPE: &str = "text/html;profile=mcp-app";
+
+/// Hosts a view may load images from: posters, through Simkl's image proxy.
+const RESOURCE_DOMAINS: &[&str] = &["https://wsrv.nl"];
+
+#[derive(Debug, Clone, Copy)]
+pub enum View {
+    /// A poster grid, for search, trending, calendar and library lists.
+    Titles,
+    /// One title with its episodes.
+    Title,
+}
+
+impl View {
+    const ALL: [View; 2] = [View::Titles, View::Title];
+
+    fn uri(self) -> &'static str {
+        match self {
+            View::Titles => "ui://simkl/titles",
+            View::Title => "ui://simkl/title",
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            View::Titles => "titles",
+            View::Title => "title",
+        }
+    }
+
+    /// The single-file bundle `ui/` builds; see `ui/vite.config.ts`.
+    fn html(self) -> &'static str {
+        match self {
+            View::Titles => include_str!("../../../ui/dist/titles.html"),
+            View::Title => include_str!("../../../ui/dist/title.html"),
+        }
+    }
+
+    /// The tool `_meta` that shows this view with the tool's result.
+    pub fn tool_meta(self) -> MetaObject {
+        meta(json!({ "resourceUri": self.uri() }))
+    }
+
+    /// Every view, for `resources/list`.
+    pub fn resources() -> Vec<Resource> {
+        View::ALL
+            .into_iter()
+            .map(|view| {
+                Resource::new(view.uri(), view.name())
+                    .with_mime_type(MIME_TYPE)
+                    .with_meta(resource_meta())
+            })
+            .collect()
+    }
+
+    /// The view at `uri`, for `resources/read`.
+    pub fn read(uri: &str) -> Option<ReadResourceResult> {
+        let view = View::ALL.into_iter().find(|view| view.uri() == uri)?;
+        let contents = ResourceContents::text(view.html(), view.uri())
+            .with_mime_type(MIME_TYPE)
+            .with_meta(resource_meta());
+        Some(ReadResourceResult::new(vec![contents]))
+    }
+}
+
+fn resource_meta() -> MetaObject {
+    meta(json!({ "csp": { "resourceDomains": RESOURCE_DOMAINS } }))
+}
+
+/// `{"ui": ui}`: MCP Apps keeps everything under the `ui` key.
+fn meta(ui: serde_json::Value) -> MetaObject {
+    let mut object = serde_json::Map::new();
+    object.insert("ui".to_owned(), ui);
+    MetaObject(object)
+}
+
+#[cfg(test)]
+#[path = "views_test.rs"]
+mod tests;
