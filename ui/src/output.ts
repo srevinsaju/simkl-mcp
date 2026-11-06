@@ -102,3 +102,25 @@ export interface GetEpisodesOutput extends Page {
   title: TitleCard;
   episodes: EpisodeItem[];
 }
+
+export interface StatusStats {
+  count: number;
+  minutes?: number;
+  watched_episodes?: number;
+  total_episodes?: number;
+  episodes_left?: number;
+  minutes_left?: number;
+}
+
+export interface KindStats {
+  total_minutes: number;
+  by_status: Partial<Record<Status, StatusStats>>;
+}
+
+export interface StatsOutput {
+  total_minutes: number;
+  movies: KindStats;
+  shows: KindStats;
+  anime: KindStats;
+  last_week_minutes?: number;
+}

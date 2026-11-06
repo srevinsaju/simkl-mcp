@@ -1,9 +1,10 @@
-// ui://simkl/title: one title's details with its episodes by season.
+// ui://simkl/title: one title's details with its episodes by season, for
+// get_title and get_episodes.
 // Ticking an episode calls mark_watched (or unmark_watched) for that episode.
 
 import type { App } from "@modelcontextprotocol/ext-apps";
 import { connect, el, KIND_LABEL, poster } from "./host";
-import type { EpisodeItem, GetEpisodesOutput, GetTitleOutput, TitleCard } from "./output";
+import type { EpisodeItem, GetEpisodesOutput, GetTitleOutput, LibraryItem, TitleCard } from "./output";
 
 const STATUS_LABEL = {
   watching: "Watching",
@@ -17,20 +18,46 @@ const NO_WRITE_ACCESS =
   "Claude can't change your Simkl library yet. Reconnect Simkl in Claude's connector settings and allow changes.";
 
 const app = document.getElementById("app")!;
-void connect<GetTitleOutput>("simkl-title", render);
+void connect<GetTitleOutput | GetEpisodesOutput>("simkl-title", render);
 
-function render(host: App, output: GetTitleOutput) {
+/** get_title loads every episode itself; get_episodes brings the page the model asked for. */
+function render(host: App, output: GetTitleOutput | GetEpisodesOutput) {
+  if ("episodes" in output) {
+    const { page, page_count } = output;
+    const meta = page_count > 1 ? `page ${page} of ${page_count}` : null;
+    renderTitle(host, output.title, { meta, episodes: Promise.resolve(regular(output.episodes)) });
+    return;
+  }
   const { title, my_entry } = output;
+  renderTitle(host, title, {
+    overview: title.overview,
+    network: title.network,
+    entry: my_entry,
+    episodes: title.kind === "movie" ? null : loadEpisodes(host, title),
+  });
+}
+
+interface TitleParts {
+  overview?: string | null;
+  network?: string | null;
+  entry?: LibraryItem;
+  meta?: string | null;
+  /** Null for movies. */
+  episodes: Promise<EpisodeItem[]> | null;
+}
+
+function renderTitle(host: App, title: TitleCard, parts: TitleParts) {
+  const { overview, network, entry, meta, episodes } = parts;
   const chips = el("div", { class: "chips" });
-  if (my_entry) chips.append(el("span", { class: "chip status" }, STATUS_LABEL[my_entry.status]));
-  if (my_entry?.user_rating) chips.append(el("span", { class: "chip" }, `★ ${my_entry.user_rating}`));
+  if (entry) chips.append(el("span", { class: "chip status" }, STATUS_LABEL[entry.status]));
+  if (entry?.user_rating) chips.append(el("span", { class: "chip" }, `★ ${entry.user_rating}`));
   const link = el("button", { class: "chip", type: "button" }, "simkl.com ↗");
   link.addEventListener("click", () => void host.openLink({ url: title.url }));
   chips.append(link);
 
-  const sub = [title.en_title, title.year, title.network ?? KIND_LABEL[title.kind]].filter(Boolean).join(" · ");
+  const sub = [title.en_title, title.year, network ?? KIND_LABEL[title.kind], meta].filter(Boolean).join(" · ");
   const status = el("p", { class: "error", role: "status" });
-  const episodes = el("div", { class: "view", ariaBusy: "true" });
+  const strip = el("div", { class: "view", ariaBusy: "true" });
   app.replaceChildren(
     el(
       "div",
@@ -44,26 +71,24 @@ function render(host: App, output: GetTitleOutput) {
           {},
           el("h1", {}, title.title),
           el("div", { class: "meta" }, sub),
-          title.overview && el("p", { class: "overview" }, title.overview),
+          overview && el("p", { class: "overview" }, overview),
           chips,
         ),
       ),
-      title.kind !== "movie" && episodes,
+      episodes && strip,
       status,
     ),
   );
 
-  if (title.kind !== "movie") {
-    void loadEpisodes(host, title)
-      .then((items) => {
-        episodes.ariaBusy = "false";
-        episodes.replaceChildren(...seasons(host, title, items, my_entry?.next_to_watch ?? null, status));
-      })
-      .catch(() => episodes.replaceChildren(el("p", { class: "error" }, "Couldn't load the episodes.")));
-  }
+  episodes
+    ?.then((items) => {
+      strip.ariaBusy = "false";
+      strip.replaceChildren(...seasons(host, title, items, entry?.next_to_watch ?? null, status));
+    })
+    .catch(() => strip.replaceChildren(el("p", { class: "error" }, "Couldn't load the episodes.")));
 }
 
-/** Every page of get_episodes, specials left out. */
+/** Every page of get_episodes. */
 async function loadEpisodes(host: App, title: TitleCard): Promise<EpisodeItem[]> {
   const items: EpisodeItem[] = [];
   for (let page = 1, pageCount = 1; page <= pageCount; page++) {
@@ -76,7 +101,12 @@ async function loadEpisodes(host: App, title: TitleCard): Promise<EpisodeItem[]>
     pageCount = output.page_count;
     items.push(...output.episodes);
   }
-  return items.filter((episode) => !episode.special && episode.episode != null);
+  return regular(items);
+}
+
+/** Specials left out: they have no place in a season's strip. */
+function regular(episodes: EpisodeItem[]): EpisodeItem[] {
+  return episodes.filter((episode) => !episode.special && episode.episode != null);
 }
 
 function seasons(
