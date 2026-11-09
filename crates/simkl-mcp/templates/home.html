@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>simkl-mcp: your Simkl library in Claude</title>
+    <meta name="description" content="Connect Simkl to Claude. Ask what to watch next, find movies, shows and anime, and mark them watched or rate them, with poster cards in the chat.">
+    <link rel="canonical" href="{{ base }}/">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#2c3e50">
+    <link rel="icon" href="https://simkl.com/favicon.ico">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="simkl-mcp">
+    <meta property="og:title" content="simkl-mcp: your Simkl library in Claude">
+    <meta property="og:description" content="Ask Claude what to watch next, find titles, and track movies, shows and anime on Simkl, with poster cards in the chat.">
+    <meta property="og:url" content="{{ base }}/">
+    <meta property="og:image" content="{{ base }}/screenshots/title.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1290">
+    <meta property="og:image:height" content="722">
+    <meta property="og:image:alt" content="Claude showing a Simkl title card for Whiplash, marked completed and rated 10 out of 10">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="simkl-mcp: your Simkl library in Claude">
+    <meta name="twitter:description" content="Ask Claude what to watch next, find titles, and track movies, shows and anime on Simkl, with poster cards in the chat.">
+    <meta name="twitter:image" content="{{ base }}/screenshots/title.png">
+    <meta name="twitter:image:alt" content="Claude showing a Simkl title card for Whiplash, marked completed and rated 10 out of 10">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "simkl-mcp",
+        "description": "An MCP server that connects Simkl to Claude and other MCP clients: search, track and rate movies, TV shows and anime.",
+        "url": "{{ base }}/",
+        "applicationCategory": "EntertainmentApplication",
+        "operatingSystem": "Any",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "image": "{{ base }}/screenshots/title.png",
+        "sameAs": ["https://github.com/srevinsaju/simkl-mcp"]
+    }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+{% include "tokens.css" %}
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font: 16px/1.6 var(--font-sans);
+            background: var(--color-background-secondary);
+            color: var(--color-text-primary);
+        }
+
+        main { max-width: 880px; margin: 0 auto; padding: 56px 20px 40px; display: grid; gap: 48px; }
+
+        .eyebrow { font: 500 14px var(--font-mono); color: var(--color-text-secondary); }
+        h1 { font-size: clamp(32px, 6vw, 48px); line-height: 1.1; font-weight: 600; margin: 10px 0 16px; }
+        .lede { font-size: 19px; color: var(--color-text-secondary); max-width: 640px; }
+
+        .connect {
+            background: var(--color-background-primary);
+            border: 1px solid var(--color-border-primary);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-md);
+            padding: 22px;
+            display: grid;
+            gap: 14px;
+        }
+        .connect h2 { font-size: 17px; font-weight: 600; }
+        .url {
+            display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+            font: 500 16px var(--font-mono);
+        }
+        .url code {
+            flex: 1 1 260px;
+            background: var(--color-background-tertiary);
+            border-radius: var(--border-radius-md);
+            padding: 10px 14px;
+            overflow-wrap: anywhere;
+        }
+        .url button {
+            font: 500 14px var(--font-sans);
+            background: var(--accent);
+            color: var(--accent-text);
+            border: 0;
+            border-radius: var(--border-radius-md);
+            padding: 10px 16px;
+            cursor: pointer;
+        }
+        .connect ol { padding-left: 20px; color: var(--color-text-secondary); display: grid; gap: 4px; }
+
+        figure { display: grid; gap: 10px; }
+        figure img {
+            width: 100%; height: auto; display: block;
+            border-radius: var(--border-radius-lg);
+            border: 1px solid var(--color-border-primary);
+            box-shadow: var(--shadow-md);
+        }
+        figcaption { font-size: 14px; color: var(--color-text-secondary); }
+
+        h2.section { font-size: 22px; font-weight: 600; margin-bottom: 14px; }
+        .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+        .feature {
+            background: var(--color-background-primary);
+            border: 1px solid var(--color-border-primary);
+            border-radius: var(--border-radius-md);
+            padding: 16px;
+        }
+        .feature h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+        .feature p { font-size: 15px; color: var(--color-text-secondary); }
+
+        a { color: inherit; }
+        footer { font-size: 14px; color: var(--color-text-secondary); display: flex; gap: 16px; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <p class="eyebrow">simkl-mcp</p>
+        <h1>Your Simkl library, in Claude</h1>
+        <p class="lede">Ask what to watch next, find movies, shows and anime, and mark them watched or rate them. Lists and titles show up as poster cards right in the chat.</p>
+    </header>
+
+    <section class="connect" aria-labelledby="connect">
+        <h2 id="connect">Connect it to Claude</h2>
+        <div class="url">
+            <code id="connector-url">{{ connector_url }}</code>
+            <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('connector-url').textContent).then(() => this.textContent = 'Copied')">Copy</button>
+        </div>
+        <ol>
+            <li>In Claude, open <strong>Settings → Connectors → Add custom connector</strong> and paste the URL.</li>
+            <li>Sign in with Simkl. It starts with read access to your library.</li>
+            <li>The first time Claude changes something, it asks you once more for write access.</li>
+        </ol>
+    </section>
+
+    <figure>
+        <img src="/screenshots/library.webp" width="1290" height="1368" alt="Claude answering &quot;What are the last 3 shows I finished?&quot; with a poster grid of the user's Simkl library">
+        <figcaption>“What are the last 3 shows I finished?”</figcaption>
+    </figure>
+
+    <section aria-labelledby="features">
+        <h2 class="section" id="features">What you can ask</h2>
+        <div class="features">
+            <div class="feature"><h3>What's next</h3><p>The next episode of everything you're watching, and what airs this week.</p></div>
+            <div class="feature"><h3>Your library</h3><p>What you watch, plan to watch, finished or dropped, with progress, ratings and stats.</p></div>
+            <div class="feature"><h3>Find titles</h3><p>Search movies, shows and anime, see what's trending, and look up any title's details.</p></div>
+            <div class="feature"><h3>Keep track</h3><p>Mark episodes or whole seasons watched, rate titles, set their status, and add a memo.</p></div>
+        </div>
+    </section>
+
+    <figure>
+        <img src="/screenshots/title.png" width="1290" height="722" alt="Claude looking up Whiplash: a title card showing Completed and a 10 out of 10 rating">
+        <figcaption>“Look up Whiplash on Simkl. Did I watch it, and what did I rate it?”</figcaption>
+    </figure>
+
+    <footer>
+        <a href="https://github.com/srevinsaju/simkl-mcp">Source on GitHub</a>
+        <a href="https://github.com/srevinsaju/simkl-mcp#self-hosting">Self-host it</a>
+        <span>Data from <a href="https://simkl.com">Simkl</a>. Not affiliated with Simkl.</span>
+    </footer>
+</main>
+</body>
+</html>

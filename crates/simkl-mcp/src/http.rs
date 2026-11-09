@@ -32,6 +32,7 @@ use serde_json::Value;
 
 use crate::auth::{Auth, ConnectionId, READ_SCOPE, VaultError, WRITE_SCOPE};
 use crate::config::Config;
+use crate::home;
 use crate::server::SimklServer;
 use crate::tools;
 
@@ -110,6 +111,7 @@ pub fn router(
             get(move || async move { Json(metadata.clone()) }),
         )
         .merge(mcp_routes)
+        .merge(home::router(config))
         .merge(auth.router()?))
 }
 
