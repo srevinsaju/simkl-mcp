@@ -15,6 +15,8 @@ FROM docker.io/library/rust:1.98-bookworm AS build
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates crates
+# The homepage embeds the README's screenshots.
+COPY docs/screenshots docs/screenshots
 COPY --from=views /src/ui/dist ui/dist
 # Migrations, askama templates and the views compile into the binary, so it
 # is the only thing the runtime image needs.

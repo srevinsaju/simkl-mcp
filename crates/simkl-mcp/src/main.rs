@@ -5,6 +5,7 @@
 
 mod auth;
 mod config;
+mod home;
 mod http;
 mod server;
 mod tools;
