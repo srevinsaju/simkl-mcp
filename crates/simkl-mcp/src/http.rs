@@ -1,5 +1,5 @@
 //! The axum router for `serve`: `/mcp`, the OAuth endpoints, the protected
-//! resource metadata (RFC 9728), and `/health`.
+//! resource metadata (RFC 9728), the landing page, and `/health`.
 //!
 //! Every `/mcp` request needs a bearer token our authorization server issued
 //! for the `/mcp` resource. Its subject is a vault connection, whose Simkl
@@ -32,6 +32,7 @@ use serde_json::Value;
 
 use crate::auth::{Auth, ConnectionId, READ_SCOPE, VaultError, WRITE_SCOPE};
 use crate::config::Config;
+use crate::landing;
 use crate::server::SimklServer;
 use crate::tools;
 
@@ -109,6 +110,7 @@ pub fn router(
             &metadata_path,
             get(move || async move { Json(metadata.clone()) }),
         )
+        .merge(landing::router(config))
         .merge(mcp_routes)
         .merge(auth.router()?))
 }

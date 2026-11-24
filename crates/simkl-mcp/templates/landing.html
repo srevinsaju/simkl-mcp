@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Simkl MCP · your Simkl library in Claude{% endblock %}
+
+{% block head %}
+    <meta name="description" content="{{ description }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Simkl MCP">
+    <meta property="og:url" content="{{ origin }}/">
+    <meta property="og:title" content="Simkl MCP · your Simkl library in Claude">
+    <meta property="og:description" content="{{ description }}">
+    <meta property="og:image" content="{{ origin }}/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="The Simkl MCP card: its icon, name and the address simkl.xwx.cat/mcp">
+    <meta name="twitter:card" content="summary_large_image">
+{% endblock %}
+
+{% block content %}
+<img class="app-icon" src="/icon.png" width="56" height="56" alt="">
+<h1>Simkl MCP</h1>
+<p class="sub">{{ description }}</p>
+
+<section>
+    <h2>Use it from Claude</h2>
+    <div class="field">
+        <code id="mcp-url">{{ origin }}/mcp</code>
+        <button type="button" id="copy">Copy</button>
+    </div>
+    <p>Add it as a custom connector in Claude and sign in with Simkl when asked.</p>
+    <p class="note">It reads your watchlist, history, ratings and stats, and changes them only after you allow it to.</p>
+</section>
+
+<p class="foot"><a href="https://xwx.cat">xwx.cat</a></p>
+
+<script>
+    document.getElementById("copy").addEventListener("click", async (event) => {
+        await navigator.clipboard.writeText(document.getElementById("mcp-url").textContent);
+        event.target.textContent = "Copied";
+    });
+</script>
+{% endblock %}

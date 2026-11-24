@@ -6,6 +6,7 @@
 mod auth;
 mod config;
 mod http;
+mod landing;
 mod server;
 mod tools;
 mod views;
