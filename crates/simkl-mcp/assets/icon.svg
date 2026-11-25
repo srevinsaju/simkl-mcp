@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- A placeholder until Simkl MCP has its own icon: the accent tile the
+       consent page shows for Simkl. -->
+  <rect width="512" height="512" rx="112" fill="#2c3e50"/>
+  <text x="256" y="256" dy="0.35em" text-anchor="middle" font-family="IBM Plex Sans" font-weight="600" font-size="300" fill="#ffffff">S</text>
+</svg>

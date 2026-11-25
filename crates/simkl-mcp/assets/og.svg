@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f5f6f7"/>
+  <rect x="64" y="64" width="1072" height="502" rx="28" fill="#ffffff" stroke="#e2e5e8" stroke-width="2"/>
+  <rect x="128" y="136" width="120" height="120" rx="26" fill="#2c3e50"/>
+  <text x="188" y="196" dy="0.35em" text-anchor="middle" font-family="IBM Plex Sans" font-weight="600" font-size="70" fill="#ffffff">S</text>
+  <text x="128" y="360" font-family="IBM Plex Sans" font-weight="600" font-size="76" fill="#1f2428">Simkl MCP</text>
+  <text x="128" y="424" font-family="IBM Plex Sans" font-size="36" fill="#5f6870">Your Simkl watchlist, history and ratings, in Claude.</text>
+  <text x="128" y="500" font-family="Fira Code" font-weight="500" font-size="28" fill="#2c3e50">simkl.xwx.cat/mcp</text>
+</svg>
