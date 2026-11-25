@@ -1,13 +1,16 @@
 //! The page at `/`: what this server is and the URL to add to Claude, with
 //! the head tags link previews read.
 //!
-//! The icon and the link-preview image are PNGs rendered from the SVGs next
-//! to them in `assets/`. The icon is a placeholder. After changing an SVG,
-//! render it again from the dev shell:
+//! The icon is Simkl's own mark, from simkl.com's `safari-pinned-tab.svg`,
+//! rendered from `assets/icon.svg`. After changing it, render it again from
+//! the dev shell:
 //!
 //! ```sh
-//! resvg --use-fonts-dir "$PLEX_FONTS" --use-fonts-dir "$FIRA_FONTS" assets/og.svg assets/og.png
+//! resvg -w 512 -h 512 assets/icon.svg assets/icon.png
 //! ```
+//!
+//! The link-preview image is the README's title screenshot, embedded from
+//! `docs/screenshots`, so the two never drift apart.
 
 use askama::Template;
 use askama_web::WebTemplate;
@@ -21,7 +24,7 @@ use crate::config::Config;
 const DESCRIPTION: &str = "Your Simkl watchlist, history and ratings, in Claude.";
 
 const ICON: &[u8] = include_bytes!("../assets/icon.png");
-const OG_IMAGE: &[u8] = include_bytes!("../assets/og.png");
+const OG_IMAGE: &[u8] = include_bytes!("../../../docs/screenshots/title.png");
 
 /// `templates/landing.html`.
 #[derive(Template, WebTemplate, Clone)]
