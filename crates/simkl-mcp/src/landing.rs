@@ -32,7 +32,12 @@ struct LandingPage {
     description: &'static str,
 }
 
-/// `/`, `/icon.png` and `/og.png`.
+/// Crawlers may index the landing page and the images its link previews
+/// use, and nothing else: `/authorize`, `/mcp` and the OAuth endpoints are
+/// for MCP clients, not search results.
+const ROBOTS: &str = "User-agent: *\nAllow: /$\nAllow: /icon.png\nAllow: /og.png\nDisallow: /\n";
+
+/// `/`, `/robots.txt`, `/icon.png` and `/og.png`.
 pub fn router(config: &Config) -> Router {
     let page = LandingPage {
         origin: config.issuer().to_owned(),
@@ -40,6 +45,7 @@ pub fn router(config: &Config) -> Router {
     };
     Router::new()
         .route("/", get(move || async move { page.clone() }))
+        .route("/robots.txt", get(|| async { ROBOTS }))
         .route(
             "/icon.png",
             get(|| async { ([(CONTENT_TYPE, "image/png")], ICON) }),
@@ -49,3 +55,7 @@ pub fn router(config: &Config) -> Router {
             get(|| async { ([(CONTENT_TYPE, "image/png")], OG_IMAGE) }),
         )
 }
+
+#[cfg(test)]
+#[path = "landing_test.rs"]
+mod tests;

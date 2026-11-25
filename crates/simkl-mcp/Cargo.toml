@@ -41,6 +41,7 @@ url = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
+tower = { workspace = true }
 oauth-as = { workspace = true, features = ["test-util"] }
 
 [lints]
