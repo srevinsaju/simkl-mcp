@@ -21,13 +21,11 @@
             rustfmt
             rust-analyzer
             gh
-            # renders crates/simkl-mcp/assets/*.svg to PNG; see crates/simkl-mcp/src/landing.rs
+            # renders crates/simkl-mcp/assets/icon.svg to PNG; see crates/simkl-mcp/src/landing.rs
             resvg
           ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.libiconv ];
 
           WRANGLER_SEND_TELEMETRY = "false";
-          PLEX_FONTS = "${pkgs.ibm-plex}/share/fonts";
-          FIRA_FONTS = "${pkgs.fira-code}/share/fonts";
           RUST_LOG = "simkl_mcp=debug,simkl_api=debug,tower_http=info";
           shellHook = ''
             echo "simkl-mcp dev shell: bun $(bun --version), node $(node --version), rust $(rustc --version | cut -d' ' -f2)"
