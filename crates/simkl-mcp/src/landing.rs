@@ -12,7 +12,7 @@
 use askama::Template;
 use askama_web::WebTemplate;
 use axum::Router;
-use axum::http::header::CONTENT_TYPE;
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::routing::get;
 
 use crate::config::Config;
@@ -23,6 +23,9 @@ const DESCRIPTION: &str = "Your Simkl watchlist, history and ratings, in Claude.
 
 const ICON: &[u8] = include_bytes!("../assets/icon.png");
 const OG_IMAGE: &[u8] = include_bytes!("../assets/og.png");
+/// A day: long enough for link previews, short enough for the placeholder
+/// icon to be replaced.
+const IMAGE_CACHE: &str = "public, max-age=86400";
 
 /// `templates/landing.html`.
 #[derive(Template, WebTemplate, Clone)]
@@ -61,11 +64,21 @@ pub fn router(config: &Config) -> Router {
         .route("/robots.txt", get(|| async { ROBOTS }))
         .route(
             "/icon.png",
-            get(|| async { ([(CONTENT_TYPE, "image/png")], ICON) }),
+            get(|| async {
+                (
+                    [(CONTENT_TYPE, "image/png"), (CACHE_CONTROL, IMAGE_CACHE)],
+                    ICON,
+                )
+            }),
         )
         .route(
             "/og.png",
-            get(|| async { ([(CONTENT_TYPE, "image/png")], OG_IMAGE) }),
+            get(|| async {
+                (
+                    [(CONTENT_TYPE, "image/png"), (CACHE_CONTROL, IMAGE_CACHE)],
+                    OG_IMAGE,
+                )
+            }),
         )
 }
 
