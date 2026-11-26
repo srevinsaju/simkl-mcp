@@ -1,5 +1,5 @@
-//! The page at `/`: what this server is and the URL to add to Claude, with
-//! the head tags link previews read.
+//! The page at `/`: what this server is, the URL to add to Claude, its tools
+//! and how to run your own, with the head tags link previews read.
 //!
 //! The icon and the link-preview image are PNGs rendered from the SVGs next
 //! to them in `assets/`. The icon is a placeholder. After changing an SVG,
@@ -16,6 +16,7 @@ use axum::http::header::CONTENT_TYPE;
 use axum::routing::get;
 
 use crate::config::Config;
+use crate::tools;
 
 /// One line on what this is, for the page and its link previews.
 const DESCRIPTION: &str = "Your Simkl watchlist, history and ratings, in Claude.";
@@ -30,6 +31,17 @@ struct LandingPage {
     /// The public origin, such as `https://simkl.xwx.cat`.
     origin: String,
     description: &'static str,
+    tools: Vec<ToolRow>,
+}
+
+/// One tool on the page.
+#[derive(Clone)]
+struct ToolRow {
+    name: String,
+    /// The first sentence of the tool's description.
+    description: String,
+    /// Whether calling it needs `media:write`.
+    write: bool,
 }
 
 /// Crawlers may index the landing page and the images its link previews
@@ -42,6 +54,7 @@ pub fn router(config: &Config) -> Router {
     let page = LandingPage {
         origin: config.issuer().to_owned(),
         description: DESCRIPTION,
+        tools: tool_rows(),
     };
     Router::new()
         .route("/", get(move || async move { page.clone() }))
@@ -54,6 +67,32 @@ pub fn router(config: &Config) -> Router {
             "/og.png",
             get(|| async { ([(CONTENT_TYPE, "image/png")], OG_IMAGE) }),
         )
+}
+
+/// Every tool, in name order.
+fn tool_rows() -> Vec<ToolRow> {
+    let write_tools = tools::write_tool_names();
+    let mut rows: Vec<ToolRow> = tools::router()
+        .list_all()
+        .into_iter()
+        .map(|tool| ToolRow {
+            write: write_tools.contains(tool.name.as_ref()),
+            description: first_sentence(tool.description.as_deref().unwrap_or_default()),
+            name: tool.name.into_owned(),
+        })
+        .collect();
+    rows.sort_by(|a, b| a.name.cmp(&b.name));
+    rows
+}
+
+/// The first sentence of a description, unwrapped: descriptions are written
+/// for the model, and the page only needs what each tool is for.
+fn first_sentence(description: &str) -> String {
+    let text = description.split_whitespace().collect::<Vec<_>>().join(" ");
+    match text.find(". ") {
+        Some(end) => text[..=end].to_owned(),
+        None => text,
+    }
 }
 
 #[cfg(test)]

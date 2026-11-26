@@ -16,8 +16,31 @@
     <meta name="twitter:card" content="summary_large_image">
 {% endblock %}
 
+{% block style %}
+        .sheet { max-width: 640px; padding: 28px 28px 22px; }
+        .logo { justify-self: center; border-radius: 14px; }
+        section { display: grid; gap: 10px; }
+        h2 { font-size: 15px; font-weight: 600; }
+        section p { font-size: 14px; color: var(--color-text-secondary); }
+        section a { color: inherit; text-underline-offset: 2px; }
+        .field { display: flex; gap: 8px; align-items: stretch; }
+        .field code, pre {
+            font: 12.5px/1.5 var(--font-mono);
+            padding: 10px 14px;
+            border-radius: var(--border-radius-md);
+            border: 1px solid var(--color-border-primary);
+            background: var(--color-background-secondary);
+        }
+        .field code { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+        button.copy { flex: none; }
+        pre { overflow-x: auto; }
+        p code { font: 12.5px var(--font-mono); }
+        .scopes code { font: 500 13px var(--font-mono); }
+        .scopes li { grid-template-columns: 1fr; }
+{% endblock %}
+
 {% block content %}
-<img class="app-icon" src="/icon.png" width="56" height="56" alt="">
+<img class="logo" src="/icon.png" width="64" height="64" alt="">
 <h1>Simkl MCP</h1>
 <p class="sub">{{ description }}</p>
 
@@ -25,16 +48,37 @@
     <h2>Use it from Claude</h2>
     <div class="field">
         <code id="mcp-url">{{ origin }}/mcp</code>
-        <button type="button" id="copy">Copy</button>
+        <button type="button" class="copy">Copy</button>
     </div>
-    <p>Add it as a custom connector in Claude and sign in with Simkl when asked.</p>
-    <p class="note">It reads your watchlist, history, ratings and stats, and changes them only after you allow it to.</p>
+    <p>Add it as a custom connector in Claude and sign in with Simkl when asked. It reads your watchlist, history, ratings and stats, and changes them only after you allow it to.</p>
+</section>
+
+<section>
+    <h2>Tools</h2>
+    <ul class="scopes">
+        {% for tool in tools %}
+        <li><span><code>{{ tool.name }}</code><small>{% if tool.write %}Needs write access. {% endif %}{{ tool.description }}</small></span></li>
+        {% endfor %}
+    </ul>
+</section>
+
+<section>
+    <h2>Run your own</h2>
+    <p>Register a <a href="https://simkl.com/settings/developer/" target="_blank" rel="noopener">Simkl app</a> with the redirect URI <code>https://&lt;your-host&gt;/auth/simkl/callback</code>, then build and run the image. <a href="https://github.com/srevinsaju/simkl-mcp#self-hosting" target="_blank" rel="noopener">Self-hosting</a> has the details.</p>
+    <pre>docker build -t simkl-mcp https://github.com/srevinsaju/simkl-mcp.git
+docker run -p 8080:8080 -v simkl-mcp:/data \
+  -e SIMKL_MCP_PUBLIC_URL=https://&lt;your-host&gt; \
+  -e SIMKL_MCP_CLIENT__CLIENT_ID=YOUR_CLIENT_ID \
+  -e SIMKL_MCP_CLIENT_SECRET=YOUR_CLIENT_SECRET \
+  -e SIMKL_MCP_VAULT_KEY=YOUR_VAULT_KEY \
+  simkl-mcp</pre>
+    <p>Make <code>YOUR_VAULT_KEY</code> once with <code>openssl rand -base64 32</code>: a new key signs everyone out.</p>
 </section>
 
 <p class="foot"><a href="https://xwx.cat">xwx.cat</a></p>
 
 <script>
-    document.getElementById("copy").addEventListener("click", async (event) => {
+    document.querySelector("button.copy").addEventListener("click", async (event) => {
         await navigator.clipboard.writeText(document.getElementById("mcp-url").textContent);
         event.target.textContent = "Copied";
     });
