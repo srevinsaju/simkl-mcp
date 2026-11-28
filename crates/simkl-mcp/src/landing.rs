@@ -2,7 +2,9 @@
 //! the head tags link previews read.
 //!
 //! The icon and the link-preview image are PNGs rendered from the SVGs next
-//! to them in `assets/`. The icon is a placeholder. After changing an SVG,
+//! to them in `assets/`. The icon is a placeholder. The link-preview image
+//! draws Simkl's logo (`assets/simkl-logo.png`) and the README's
+//! `docs/screenshots/title.png`. After changing an SVG or the screenshot,
 //! render it again from the dev shell:
 //!
 //! ```sh
